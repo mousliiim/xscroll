@@ -1,15 +1,19 @@
 import { isPostId } from './model.js';
-import { MUTATION_OPERATIONS, QUERY_OPERATIONS, SITE } from './protocol.js';
+import { BOOKMARK_OPERATIONS, MUTATION_OPERATIONS, QUERY_OPERATIONS, SITE } from './protocol.js';
 
 const BUNDLE = /\/(?:main|runtime|entry-client-[\w-]+|bundle\.(?:ImmersiveMediaViewer|Conversation|TweetDetail|Bookmarks|TweetAction|Search(?:Timeline)?))\.[\w.-]+\.js$/;
 const CHUNK = /(\d+):"(bundle\.(?:ImmersiveMediaViewer|Conversation|TweetDetail|Bookmarks|TweetAction|Search(?:Timeline)?))"/g;
 const METADATA = /queryId\s*:\s*"([\w-]+)"\s*,\s*operationName\s*:\s*"(\w+)"\s*,\s*operationType\s*:\s*"(query|mutation)"(?:\s*,\s*metadata\s*:\s*\{\s*featureSwitches\s*:\s*(\[[^\]]*\])\s*,\s*fieldToggles\s*:\s*(\[[^\]]*\]))?/g;
+const RELAY_BOOKMARK = /params:\{id:\s*["'`]([\w-]+)["'`],\s*metadata:\{[^}]*\},\s*name:\s*["'`](BookmarkAdd|BookmarkDelete)["'`],\s*operationKind:\s*["'`]mutation["'`]/g;
+const MODULE_ASSET = /^\/x-web\/(?:x-web\/)?(?:entry-client-[\w-]+|assets\/[\w-]+)\.js$/;
+const STATIC_IMPORT = /\b(?:from|import)\s*["'](\.\/(?:assets\/)?[\w-]+\.js)["']/g;
+const BOOKMARK_RESULT = { CreateBookmark: 'tweet_bookmark_put', DeleteBookmark: 'tweet_bookmark_delete' };
 
 function safeBundle(url) {
   try {
     const parsed = new URL(url);
     return (parsed.origin === SITE || parsed.origin === 'https://abs.twimg.com') &&
-      (BUNDLE.test(parsed.pathname) || /\/x-web\/[\w/-]*entry-client-[\w-]+\.js$/.test(parsed.pathname));
+      (BUNDLE.test(parsed.pathname) || MODULE_ASSET.test(parsed.pathname));
   } catch {
     return false;
   }
@@ -27,11 +31,12 @@ export function parseOperations(sources) {
   const operations = new Map();
   let bearer;
   for (const source of sources) {
-    bearer ||= source.match(/"(Bearer [A-Za-z0-9%._-]+)"/)?.[1];
+    bearer ||= source.match(/["'`](Bearer [A-Za-z0-9%._-]+)["'`]/)?.[1];
     for (const [, id, name, type, features, toggles] of source.matchAll(METADATA)) {
       const allowed = type === 'query' ? QUERY_OPERATIONS : MUTATION_OPERATIONS;
       if (allowed.has(name)) operations.set(name, { id, features: boolKeys(features, true), toggles: boolKeys(toggles, false) });
     }
+    for (const [, id, name] of source.matchAll(RELAY_BOOKMARK)) operations.set(name, { id });
   }
   return { bearer, operations };
 }
@@ -45,15 +50,25 @@ async function discover() {
   for (const entry of performance.getEntriesByType('resource')) {
     if (safeBundle(entry.name)) urls.add(entry.name);
   }
-  const sources = await Promise.all([...urls].slice(0, 16).map(readText));
+  const initial = [...urls].slice(0, 24);
+  const sources = await Promise.all(initial.map(readText));
   const bundleURLs = new Set();
+  for (const [index, source] of sources.entries()) {
+    for (const [, relative] of source.matchAll(STATIC_IMPORT)) {
+      const url = new URL(relative, initial[index]).href;
+      if (safeBundle(url)) bundleURLs.add(url);
+    }
+  }
   for (const source of [...scripts.filter(script => !script.src).map(script => script.textContent), ...sources]) {
     for (const [, id, name] of source.matchAll(CHUNK)) {
       const hash = source.match(new RegExp(`[{,]${id}:"([a-f0-9]{8,20})"`))?.[1];
       if (hash) bundleURLs.add(`https://abs.twimg.com/responsive-web/client-web/${name}.${hash}a.js`);
     }
   }
-  sources.push(...await Promise.all([...bundleURLs].filter(url => !urls.has(url)).slice(0, 8).map(readText)));
+  const read = new Set(initial);
+  const imported = [...bundleURLs].filter(url => !read.has(url));
+  const extra = [...new Set([...imported, ...[...urls].slice(24).reverse()])].slice(0, 16);
+  sources.push(...await Promise.all(extra.map(readText)));
   return parseOperations(sources);
 }
 
@@ -67,29 +82,42 @@ export class XRequestError extends Error {
 export function createXClient() {
   const observed = new Map();
   const pendingDetails = new Map();
-  let discovery;
+  let discovery, scannedAt = 0;
+
+  function scan() {
+    discovery = discover().catch(() => null).finally(() => { scannedAt = Date.now(); });
+    return discovery;
+  }
 
   async function request(name, variables, method) {
     const allowed = method === 'POST' ? MUTATION_OPERATIONS : QUERY_OPERATIONS;
     if (!allowed.has(name)) throw new XRequestError('unavailable', 'Action unavailable in this version of X.');
     const csrf = document.cookie.match(/(?:^|;\s*)ct0=([^;]+)/)?.[1];
     if (!csrf) throw new XRequestError('session', 'Sign in to X to continue.');
-    discovery ||= discover().catch(() => null);
-    const definitions = await discovery;
-    if (!definitions?.bearer) discovery = undefined;
-    const operation = observed.get(name) || definitions?.operations.get(name);
+    const modern = BOOKMARK_OPERATIONS[name];
+    const definition = (definitions, operation) => observed.get(operation) || definitions?.operations.get(operation);
+    const currentScan = discovery || scan();
+    let definitions = await currentScan;
+    if (currentScan !== discovery) definitions = await discovery;
+    else if ((!definitions?.bearer || (!definition(definitions, name) && !definition(definitions, modern))) && Date.now() - scannedAt > 3000) {
+      definitions = await scan();
+    }
+    const wireName = modern && (observed.has(modern) || (!observed.has(name) && definitions?.operations.has(modern))) ? modern : name;
+    const operation = definition(definitions, wireName);
     if (!operation || !definitions?.bearer) throw new XRequestError('unavailable', 'This action is temporarily unavailable.');
-    const url = new URL(`/i/api/graphql/${operation.id}/${name}`, SITE);
+    const relayBookmark = wireName !== name;
+    const url = relayBookmark ? new URL(`https://api.x.com/graphql/${operation.id}/${wireName}`) :
+      new URL(`/i/api/graphql/${operation.id}/${name}`, SITE);
     const headers = {
       authorization: definitions.bearer,
       'x-csrf-token': csrf,
       'x-twitter-auth-type': 'OAuth2Session',
       'x-twitter-active-user': 'yes',
     };
-    const options = { method, headers, credentials: 'same-origin', signal: AbortSignal.timeout(10000) };
+    const options = { method, headers, credentials: relayBookmark ? 'include' : 'same-origin', signal: AbortSignal.timeout(10000) };
     if (method === 'POST') {
       headers['content-type'] = 'application/json';
-      options.body = JSON.stringify({ queryId: operation.id, variables });
+      options.body = JSON.stringify({ queryId: operation.id, variables: relayBookmark ? { tweetId: variables.tweet_id } : variables });
     } else {
       url.searchParams.set('variables', JSON.stringify(variables));
       if (operation.features) url.searchParams.set('features', operation.features);
@@ -103,7 +131,9 @@ export function createXClient() {
     }
     const payload = await response.json();
     if (method === 'POST') {
-      const confirmed = payload?.data && Object.values(payload.data).some(Boolean);
+      const bookmarkResult = BOOKMARK_RESULT[name];
+      const confirmed = bookmarkResult ? (payload?.data ?? payload)?.[bookmarkResult] === 'Done' :
+        payload?.data && Object.values(payload.data).some(Boolean);
       if (!confirmed || payload.errors?.length) {
         const code = !confirmed && payload.errors?.length ? 'unavailable' : 'server';
         throw new XRequestError(code, 'X did not confirm this action.');

@@ -96,8 +96,8 @@ svg { display: block; width: 18px; height: 18px; flex: none; }
 .button:active:not(:disabled) { transform: translateY(1px); }
 .button:disabled { opacity: .42; cursor: default; }
 .button[aria-expanded="true"], .button[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent); }
-.tools [data-action="float"] { font-size: 12px; }
-.tools [data-action="float"] { background: var(--accent); color: var(--page); padding-inline: 11px; border-color: transparent; }
+.tools { gap: 8px; }
+.tools [data-action="float"] { background: var(--accent); color: var(--page); padding-inline: 11px; border-color: transparent; font-size: 12px; }
 :host([data-theme="light"]) .tools [data-action="float"] { color: #ffffff; }
 .tools [data-action="float"]:hover { background: var(--accent); filter: brightness(1.13); }
 .tools [data-action="close"] { background: transparent; border-color: transparent; }
@@ -411,7 +411,8 @@ input[type="range"]:disabled { opacity: .4; cursor: default; }
 .rate-choices .button, .speed-holds .button { flex: 1; min-width: 0; min-height: 31px; padding: 0 3px; font-size: 11px; }
 .rate-choices .button { font-variant-numeric: tabular-nums; }
 .speed-holds { margin-top: 7px; }
-.speed-holds .button { gap: 6px; min-height: 34px; border: 1px solid var(--border); touch-action: manipulation; user-select: none; }
+.speed-holds .button { gap: 6px; min-height: 34px; border: 1px solid var(--border); touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.speed-holds .button > * { pointer-events: none; }
 .speed-holds svg { width: 16px; height: 16px; }
 .speed-holds .button[data-held] { background: var(--accent-bg); border-color: var(--muted); color: var(--accent); }
 .loop-heading { justify-content: space-between; border-top: 1px solid var(--border); margin-top: 8px; padding-top: 4px; }
@@ -442,7 +443,7 @@ kbd { padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; fon
   .shell { gap: 7px; padding: 7px; }
   .brand { gap: 6px; font-size: 13px; }
   .mark { width: 29px; height: 29px; border-radius: 8px; }
-  .tools { gap: 4px; }
+  .tools { gap: 6px; }
   .tools .button { min-height: 32px; min-width: 32px; padding-inline: 6px; border-radius: 7px; }
   .top { padding-bottom: 5px; }
   :host([data-floating]) .tools [data-action="float"] span { display: none; }

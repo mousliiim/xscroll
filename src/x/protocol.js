@@ -4,8 +4,10 @@ export const SEARCH_MARKER = '#xscroll-video-search';
 export const OBSERVER_CHANNEL = 'xscroll.timeline.v1';
 
 export const QUERY_OPERATIONS = new Set(['ImmersiveMedia', 'TweetDetail', 'TVHomeMixer', 'MediaTabVideoMixer', 'SearchTimeline']);
+export const BOOKMARK_OPERATIONS = { CreateBookmark: 'BookmarkAdd', DeleteBookmark: 'BookmarkDelete' };
 export const MUTATION_OPERATIONS = new Set([
   'FavoriteTweet', 'UnfavoriteTweet', 'CreateRetweet', 'DeleteRetweet', 'CreateBookmark', 'DeleteBookmark',
+  ...Object.values(BOOKMARK_OPERATIONS),
 ]);
 
 const TIMELINE_OPERATIONS = /^(?:Home(?:Latest)?Timeline|User(?:Tweets(?:AndReplies)?|Media|HighlightsTweets|Likes)|SearchTimeline|Community\w*Timeline|List(?:Latest)?TweetsTimeline|TweetResultByRestId|Bookmarks|Explore\w*Timeline)$/;
@@ -25,8 +27,9 @@ export function timelineContext(url = location.href) {
 export function operationFromURL(value) {
   try {
     const url = new URL(value, SITE);
-    if (url.origin !== SITE) return null;
-    const [, id, name] = url.pathname.match(/^\/i\/api\/graphql\/([\w-]{1,80})\/(\w+)$/) || [];
+    const path = url.origin === SITE && url.pathname.startsWith('/i/api/') ? url.pathname.slice(6) :
+      url.origin === 'https://api.x.com' ? url.pathname : '';
+    const [, id, name] = path.match(/^\/graphql\/([\w-]{1,80})\/(\w+)$/) || [];
     return name ? { id, name, url } : null;
   } catch {
     return null;

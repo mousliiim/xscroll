@@ -22,6 +22,7 @@ const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/remote.css', ['remote.css', 'text/css; charset=utf-8']],
   ['/remote.js', ['remote.js', 'text/javascript; charset=utf-8']],
+  ['/hold.mjs', ['hold.mjs', 'text/javascript; charset=utf-8']],
   ['/screen', ['screen.html', 'text/html; charset=utf-8']],
   ['/screen/', ['screen.html', 'text/html; charset=utf-8']],
   ['/screen.css', ['screen.css', 'text/css; charset=utf-8']],

@@ -23,7 +23,8 @@ function nativePost(id) {
 }
 
 function nativeButton(article, kind, enabled) {
-  return article?.querySelector(`[data-testid="${ACTIONS[kind].native[Number(enabled)]}"]`);
+  const legacy = article?.querySelector(`[data-testid="${ACTIONS[kind].native[Number(enabled)]}"]`);
+  return legacy || (kind === 'bookmark' && article?.querySelector(`[data-engagement-action="bookmark"] button[aria-pressed="${enabled}"]`));
 }
 
 function waitForDOM(read, timeout) {
@@ -40,7 +41,7 @@ function waitForDOM(read, timeout) {
       observer.disconnect();
       resolve(result);
     }
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-testid'] });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-testid', 'aria-pressed'] });
     timer = setTimeout(() => finish(null), timeout);
   });
 }

@@ -382,7 +382,10 @@ export function createPlayerView(actions) {
         const title = pressed ? inverse : verb;
         attribute(button, 'aria-label', title);
         attribute(button, 'title', title);
-        text(button.querySelector('span'), () => count > 0 && kind !== 'bookmark' ? countLabel(count) : translate(plain));
+        text(button.querySelector('span'), () => {
+          if (kind === 'bookmark') return translate(pressed ? 'Saved' : plain);
+          return count > 0 ? countLabel(count) : translate(plain);
+        });
       }
     },
   };

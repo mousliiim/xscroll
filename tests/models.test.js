@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { actionRequest, createPostActions } from '../src/x/actions.js';
-import { parseOperations } from '../src/x/client.js';
-import { acceptClips, extractVideos } from '../src/x/model.js';
+import { createXClient, parseOperations } from '../src/x/client.js';
+import { acceptClips, extractVideos, postStats } from '../src/x/model.js';
+import { operationFromURL } from '../src/x/protocol.js';
 import { extractReplies } from '../src/x/replies.js';
 import { pickVariant } from '../src/player/media.js';
 
@@ -95,4 +96,46 @@ test('an explicit remote action is idempotent when the post already has the requ
   assert.equal(await actions.toggle('123', 'bookmark', true), true);
   assert.equal(await actions.toggle('123', 'bookmark', true), true);
   assert.deepEqual(calls, [{ name: 'CreateBookmark', variables: { tweet_id: '123' } }]);
+});
+
+test('adds and removes a bookmark through the current X client and requires an acknowledgement', async t => {
+  const base = 'https://abs.twimg.com/x-web/x-web/';
+  const entry = base + 'entry-client-test.js';
+  const bookmarks = base + 'assets/bookmarks-test.js';
+  const previous = globalThis.document;
+  globalThis.document = { cookie: 'ct0=fixture', scripts: [{ src: entry }] };
+  t.after(() => {
+    if (previous === undefined) delete globalThis.document;
+    else globalThis.document = previous;
+  });
+
+  const writes = [];
+  let rejectAdd = false;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (url === entry) return new Response('import{actions}from"./assets/bookmarks-test.js";');
+    if (url === bookmarks) return new Response([
+      'const auth = `Bearer fixture-token`;',
+      'params:{id:`add`,metadata:{},name:`BookmarkAdd`,operationKind:`mutation`,text:null}',
+      'params:{id:`remove`,metadata:{},name:`BookmarkDelete`,operationKind:`mutation`,text:null}',
+    ].join('\n'));
+    writes.push([url.href, options.credentials, JSON.parse(options.body)]);
+    return Response.json(url.pathname.endsWith('/BookmarkDelete') ? { tweet_bookmark_delete: 'Done' } :
+      { data: { tweet_bookmark_put: rejectAdd ? 'Error' : 'Done' } });
+  });
+
+  const actions = createPostActions(createXClient(), () => {});
+  actions.merge('123', postStats({ perspective: { bookmarked: false }, counts: { bookmark_count: 4 } }));
+  assert.equal(await actions.toggle('123', 'bookmark', true), true);
+  assert.equal(actions.read('123').stats.bookmarkCount, 5);
+  assert.equal(await actions.toggle('123', 'bookmark', false), false);
+  assert.equal(actions.read('123').stats.bookmarkCount, 4);
+  assert.deepEqual(writes, [
+    ['https://api.x.com/graphql/add/BookmarkAdd', 'include', { queryId: 'add', variables: { tweetId: '123' } }],
+    ['https://api.x.com/graphql/remove/BookmarkDelete', 'include', { queryId: 'remove', variables: { tweetId: '123' } }],
+  ]);
+  assert.equal(operationFromURL(writes[0][0]).name, 'BookmarkAdd');
+  assert.equal(operationFromURL('https://example.test/graphql/add/BookmarkAdd'), null);
+  rejectAdd = true;
+  await assert.rejects(actions.toggle('123', 'bookmark', true), /did not confirm/);
+  assert.equal(actions.read('123').stats.bookmark, false);
 });

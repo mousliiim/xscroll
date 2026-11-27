@@ -1,4 +1,5 @@
 import { attribute, text } from '../../remote/language.mjs';
+import { bindHold } from '../../remote/hold.mjs';
 import { MAX_RATE, MIN_RATE, normalizeRate } from '../player/rate.js';
 import { rateLabel } from './components.js';
 import { icon } from './icons.js';
@@ -44,7 +45,6 @@ export function createSpeedControls(root, adjust, preview) {
   }
   const normal = 100 * (1 - MIN_RATE) / (MAX_RATE - MIN_RATE);
   dial.style.setProperty('--speed-normal', `${normal}%`);
-  let held;
 
   function setTarget(rate) {
     const percent = 100 * (rate - MIN_RATE) / (MAX_RATE - MIN_RATE);
@@ -60,45 +60,9 @@ export function createSpeedControls(root, adjust, preview) {
     text(mode, rate < 1 ? 'Slow motion' : rate > 1 ? 'Fast forward' : 'Normal speed');
   }
 
-  function release() {
-    if (!held) return;
-    const { button, listeners } = held;
-    held = undefined;
-    listeners.abort();
-    delete button.dataset.held;
-    preview();
-  }
-
-  function hold(button, input) {
-    release();
-    const listeners = new AbortController();
-    held = { button, input, listeners };
-    button.dataset.held = '';
-    button.ownerDocument.defaultView.addEventListener('blur', release, { once: true, signal: listeners.signal });
-    preview(Number(button.dataset.holdRate));
-  }
-
+  const release = bindHold(panel.querySelectorAll('[data-hold-rate]'), button => preview(Number(button.dataset.holdRate)), () => preview());
   range.addEventListener('input', () => adjust(range.valueAsNumber));
   panel.addEventListener('beforetoggle', event => { if (event.newState === 'closed') release(); });
-  for (const button of panel.querySelectorAll('[data-hold-rate]')) {
-    button.addEventListener('pointerdown', event => {
-      if (!event.isPrimary || event.button !== 0) return;
-      button.setPointerCapture(event.pointerId);
-      hold(button, event.pointerId);
-    });
-    button.addEventListener('lostpointercapture', event => {
-      if (held?.button === button && held.input === event.pointerId) release();
-    });
-    button.addEventListener('keydown', event => {
-      if (event.key !== ' ' && event.key !== 'Enter') return;
-      event.preventDefault();
-      if (!event.repeat) hold(button, event.key);
-    });
-    button.addEventListener('keyup', event => {
-      if (held?.button === button && held.input === event.key) release();
-    });
-    button.addEventListener('blur', () => { if (held?.button === button) release(); });
-  }
 
   setTarget(1);
   return { setTarget, setActual };

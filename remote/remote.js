@@ -1,4 +1,5 @@
 import { attribute, language, pageLanguage, text as write } from './language.mjs';
+import { bindHold } from './hold.mjs';
 
 const find = selector => document.querySelector(selector);
 const pairing = find('#pairing');
@@ -50,7 +51,7 @@ const speedLabel = rate => `${rateFormats[language()].format(rate)}×`;
 let paired = false, available = false, playable = false, online = false;
 let polling = false, pairingNow = false, discoverySending = false, revision = 0;
 let pending, discovery;
-let editingUntil = 0, held, speedTimer, speedInFlight = false, nextRateAt = 0;
+let editingUntil = 0, holdTimer, speedTimer, speedInFlight = false, nextRateAt = 0;
 const pendingRates = new Map();
 let screenConnected = false, screenSending = false;
 screenLink.value = new URL('/screen', location.origin).href;
@@ -155,6 +156,7 @@ function renderDiscovery() {
 }
 
 function renderControls() {
+  if (!playable) releaseHold();
   for (const button of [...buttons.values(), ...previews]) button.disabled = !playable;
   speedRange.disabled = !playable;
   hint.hidden = !paired || available;
@@ -190,11 +192,15 @@ function render(result) {
   const play = buttons.get('toggle-play');
   play.querySelector('use').setAttribute('href', paused ? '#play' : '#pause');
   write(play.querySelector('.play-label'), paused ? 'Lire' : 'Pause');
-  buttons.get('toggle-mute').setAttribute('aria-pressed', String(muted));
-  write(buttons.get('toggle-mute'), muted ? 'Son coupé' : 'Son');
-  buttons.get('replies').setAttribute('aria-pressed', String(replies));
+  const sound = buttons.get('toggle-mute');
+  sound.setAttribute('aria-pressed', String(muted));
+  sound.querySelector('use').setAttribute('href', muted ? '#muted-icon' : '#sound-icon');
+  write(sound.querySelector('span'), muted ? 'Son coupé' : 'Son');
+  const repliesButton = buttons.get('replies');
+  repliesButton.setAttribute('aria-pressed', String(replies));
+  write(repliesButton.querySelector('.reply-toggle-label'), replies ? 'Masquer' : 'Afficher');
   buttons.get('replies-auto').setAttribute('aria-pressed', String(autoReplies));
-  if (!held && Date.now() >= editingUntil) drawSpeed(rate, rateTarget ?? rate);
+  if (!holdTimer && Date.now() >= editingUntil) drawSpeed(rate, rateTarget ?? rate);
 }
 
 async function update() {
@@ -364,46 +370,18 @@ speedRange.addEventListener('input', () => {
   queueRate('speed', rate);
 });
 
-function releaseHold() {
-  if (!held) return;
-  const { button, timer } = held;
-  held = undefined;
-  clearInterval(timer);
-  delete button.dataset.held;
+const releaseHold = bindHold(previews, button => {
+  const rate = Number(button.dataset.previewRate);
+  holdTimer = setInterval(() => queueRate('speed-preview', rate), 1100);
+  drawSpeed(rate, speedRange.valueAsNumber);
+  queueRate('speed-preview', rate);
+}, () => {
+  clearInterval(holdTimer);
+  holdTimer = undefined;
   editingUntil = Date.now() + 1250;
   drawSpeed(speedRange.valueAsNumber);
   queueRate('speed-preview', null);
-}
-
-function holdRate(button, trigger) {
-  releaseHold();
-  const rate = Number(button.dataset.previewRate);
-  button.dataset.held = '';
-  held = { button, trigger, timer: setInterval(() => queueRate('speed-preview', rate), 1100) };
-  drawSpeed(rate, speedRange.valueAsNumber);
-  queueRate('speed-preview', rate);
-}
-
-for (const button of previews) {
-  button.addEventListener('pointerdown', event => {
-    if (!playable || event.button !== 0 || !event.isPrimary) return;
-    button.setPointerCapture(event.pointerId);
-    holdRate(button, event.pointerId);
-  });
-  button.addEventListener('lostpointercapture', event => {
-    if (held?.button === button && held.trigger === event.pointerId) releaseHold();
-  });
-  button.addEventListener('keydown', event => {
-    if (event.key !== ' ' && event.key !== 'Enter') return;
-    event.preventDefault();
-    if (!event.repeat && playable) holdRate(button, event.key);
-  });
-  button.addEventListener('keyup', event => {
-    if (held?.button === button && held.trigger === event.key) releaseHold();
-  });
-  button.addEventListener('blur', () => { if (held?.button === button) releaseHold(); });
-}
-window.addEventListener('blur', releaseHold);
+});
 
 for (const button of postButtons) button.addEventListener('click', () => { void sendPost(button.dataset.post); });
 
@@ -434,7 +412,4 @@ document.addEventListener('keydown', event => {
 pageLanguage();
 void update();
 setInterval(() => { if (!document.hidden) void update(); }, 1200);
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) releaseHold();
-  else void update();
-});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) void update(); });

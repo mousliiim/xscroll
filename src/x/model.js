@@ -61,17 +61,17 @@ export function postStats(tweet) {
   return {
     like: flag(legacy.favorited ?? tweet.favorited),
     repost: flag(legacy.retweeted ?? tweet.retweeted),
-    bookmark: flag(legacy.bookmarked ?? tweet.bookmarked),
+    bookmark: flag(legacy.bookmarked ?? tweet.perspective?.bookmarked ?? tweet.bookmarked),
     likeCount: counter(legacy.favorite_count),
     repostCount: counter(legacy.retweet_count),
-    bookmarkCount: counter(legacy.bookmark_count),
+    bookmarkCount: counter(legacy.bookmark_count ?? tweet.counts?.bookmark_count),
     replyCount: counter(legacy.reply_count),
   };
 }
 
 export function findPost(root, id) {
   for (const node of objects(root)) {
-    if (node.legacy && (node.rest_id || node.legacy.id_str) === id) return node;
+    if ((node.legacy || node.__typename === 'Tweet') && (node.rest_id || node.legacy?.id_str) === id) return node;
   }
   return undefined;
 }
