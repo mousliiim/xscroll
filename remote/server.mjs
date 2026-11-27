@@ -11,6 +11,7 @@ import { REMOTE_PORT, remoteCommand, remoteStatus } from './protocol.mjs';
 import { configureWindowsLan, windowsLan } from './windows-lan.mjs';
 import { normalizeLanguage, translate } from './language.mjs';
 import { createScreenSessions } from './screen-sessions.mjs';
+import { relayScreenMedia, serveScreenMedia } from './screen-media.mjs';
 
 const COOKIE = 'xscroll-remote';
 const SCREEN_COOKIE = 'xscroll-screen';
@@ -78,7 +79,7 @@ function readJSON(request, limit = 3000) {
   });
 }
 
-export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = hostAddresses } = {}) {
+export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = hostAddresses, fetchMedia = fetch } = {}) {
   let code = fixedCode || String(randomInt(100000, 1000000));
   const instance = randomBytes(12).toString('hex');
   let lastPoll = 0, state = remoteStatus(), waiting, commands = [];
@@ -91,8 +92,8 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
   function screenSnapshot(token, now = Date.now(), touch = true) {
     const result = screen.status(token, touch);
     if (result.phase !== 'connected' || !state.ready || now - lastPoll >= activeFor) return result;
-    const { paused, muted, rate, media, volume } = state;
-    return { ...result, playback: { paused, muted, rate, media, volume, age: Math.max(0, now - lastPoll) } };
+    const { paused, muted, media, volume, rate } = state;
+    return { ...result, playback: { paused, muted, rate, media: relayScreenMedia(media), volume, age: Math.max(0, now - lastPoll) } };
   }
 
   function publishScreen() {
@@ -211,7 +212,7 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
       const display = pathname === '/screen' || pathname === '/screen/';
       response.writeHead(200, {
         'Content-Type': type, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
-        'Content-Security-Policy': `default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; media-src ${display ? 'https://video.twimg.com' : "'none'"}; img-src 'self'${display ? ' https://pbs.twimg.com' : ''}`,
+        'Content-Security-Policy': `default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; media-src ${display ? "'self' https://video.twimg.com" : "'none'"}; img-src 'self'${display ? ' https://pbs.twimg.com' : ''}`,
         'Referrer-Policy': 'no-referrer',
       });
       return response.end(data);
@@ -224,6 +225,12 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
     const token = cookie(request, COOKIE);
     const paired = token && (sessions.get(token) || 0) > now;
     const screenToken = cookie(request, SCREEN_COOKIE);
+    if (pathname === '/api/screen/media') {
+      return serveScreenMedia(request, response, {
+        authorized: screen.status(screenToken, false).phase === 'connected',
+        fetchMedia,
+      });
+    }
     if (pathname === '/api/screen/request' && request.method === 'POST') {
       if (!await readJSON(request)) return reply(response, 400, { error: 'Requête invalide.' });
       const { token: key, code } = screen.request(screenToken);

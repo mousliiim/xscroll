@@ -11,12 +11,10 @@
   var reportedAudio;
   var connected = false;
   var mediaURL = '';
-  var primaryMediaURL = '';
   var currentMediaKey = '';
-  var primaryTried = false;
+  var sourceCandidates = [];
+  var attemptedSources = [];
   var displayedCommentId = '';
-  var fallbackURL = '';
-  var fallbackTried = false;
   var bufferingSince = 0;
   var lastTouch = 0;
   var playback;
@@ -110,20 +108,19 @@
     commentStats.hidden = !visible;
   }
 
-  function useAlternativeSource() {
-    var next = mediaURL === primaryMediaURL ? fallbackURL : primaryMediaURL;
-    if (!next || next === mediaURL) return false;
-    if (next === fallbackURL) {
-      if (fallbackTried) return false;
-      fallbackTried = true;
-    } else {
-      if (primaryTried) return false;
-      primaryTried = true;
+  function loadNextSource() {
+    var next;
+    while (sourceCandidates.length) {
+      next = sourceCandidates.shift();
+      if (next && next !== mediaURL && attemptedSources.indexOf(next) === -1) break;
+      next = '';
     }
+    if (!next) return false;
+    if (mediaURL && attemptedSources.indexOf(mediaURL) === -1) attemptedSources.push(mediaURL);
     mediaURL = next;
+    bufferingSince = new Date().getTime();
     video.src = mediaURL;
     video.load();
-    bufferingSince = new Date().getTime();
     return true;
   }
 
@@ -146,12 +143,10 @@
         video.load();
       }
       mediaURL = '';
-      primaryMediaURL = '';
       currentMediaKey = '';
       displayedCommentId = '';
-      fallbackURL = '';
-      fallbackTried = false;
-      primaryTried = false;
+      sourceCandidates = [];
+      attemptedSources = [];
       caption.hidden = true;
       subtitle.hidden = true;
       avatar.hidden = true;
@@ -162,19 +157,17 @@
     }
 
     var mediaKey = media.key || media.url;
-    if (currentMediaKey !== mediaKey || primaryMediaURL !== media.url) {
+    if (currentMediaKey !== mediaKey) {
       currentMediaKey = mediaKey;
-      primaryMediaURL = media.url;
-      fallbackURL = media.fallback && media.fallback !== media.url ? media.fallback : '';
-      mediaURL = fallbackURL || primaryMediaURL;
-      fallbackTried = Boolean(fallbackURL);
-      primaryTried = mediaURL === primaryMediaURL;
+      sourceCandidates = [media.url].concat(media.fallbacks || [], [media.fallback])
+        .filter(function (url, index, list) { return url && list.indexOf(url) === index; });
+      attemptedSources = [];
+      mediaURL = '';
       bufferingSince = new Date().getTime();
-      video.src = mediaURL;
-      video.load();
+      if (!loadNextSource()) showWait('Cet écran ne peut pas lire cette vidéo.');
     }
     if (bufferingSince && !value.paused && video.readyState < 3 &&
-        new Date().getTime() - bufferingSince > 3500 && useAlternativeSource()) return;
+        new Date().getTime() - bufferingSince > 3500 && loadNextSource()) return;
     if (!value.paused && video.readyState >= 3) bufferingSince = 0;
     showWait(video.error ? 'Cet écran ne peut pas lire la vidéo.' :
       bufferingSince && !value.paused && new Date().getTime() - bufferingSince > 900 ?
@@ -256,8 +249,9 @@
         video.removeAttribute('src');
         video.load();
       }
-      mediaURL = primaryMediaURL = currentMediaKey = fallbackURL = '';
-      primaryTried = fallbackTried = false;
+      mediaURL = currentMediaKey = '';
+      sourceCandidates = [];
+      attemptedSources = [];
       displayedCommentId = '';
       showComment(null);
     }
@@ -365,7 +359,7 @@
   });
   video.addEventListener('error', function () {
     if (moduleReady) return;
-    if (video.getAttribute('src') && !useAlternativeSource()) showWait('Cet écran ne peut pas lire la vidéo.');
+    if (video.getAttribute('src') && !loadNextSource()) showWait('Cet écran ne peut pas lire la vidéo.');
   });
   video.addEventListener('canplay', function () { bufferingSince = 0; });
   video.addEventListener('waiting', function () { if (!bufferingSince) bufferingSince = new Date().getTime(); });

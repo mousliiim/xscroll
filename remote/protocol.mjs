@@ -160,9 +160,12 @@ export function screenMedia(value) {
   const url = screenMediaURL(value?.url);
   if (!url) return null;
   const fallback = screenMediaURL(value.fallback);
+  const fallbacks = Array.isArray(value.fallbacks) ? value.fallbacks.slice(0, 12)
+    .map(screenMediaURL).filter(candidate => candidate && candidate !== url) : [];
   return {
     url,
     fallback: fallback !== url ? fallback : '',
+    fallbacks: [...new Set([fallback, ...fallbacks])].filter(candidate => candidate && candidate !== url),
     key: typeof value.key === 'string' && /^\d{1,25}:\d{1,4}$/.test(value.key) ? value.key : '',
     jump: Number.isSafeInteger(value.jump) && value.jump >= 0 ? value.jump : 0,
     time: Number.isFinite(value.time) ? Math.max(0, value.time) : 0,

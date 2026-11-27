@@ -30,7 +30,8 @@ let phase = '', playback, received = 0, polling = false, pairing = false;
 let audioAllowed = false, reportedAudio = false, audioRequest = false;
 let playBlocked = false, playAttempt;
 let stream, streamSeen = 0, streamRetry = 0, lastStatusPoll = 0;
-let clipKey, fallbackSource, appliedJump, needsPosition = false, bufferingSince, stalledSince;
+let clipKey, sourceKey, appliedJump, needsPosition = false, bufferingSince, stalledSince;
+let fallbackSources = [], attemptedSources = [];
 let displayedCommentId = '';
 const SNAPSHOT_TIMEOUT = 8000;
 const BUFFER_LIMIT = 2800;
@@ -84,6 +85,8 @@ function tryPlay() {
 
 function loadSource(url) {
   if (video.getAttribute('src') === url) return;
+  const current = video.getAttribute('src');
+  if (current && !attemptedSources.includes(current)) attemptedSources.push(current);
   needsPosition = true;
   bufferingSince = performance.now();
   playBlocked = false;
@@ -91,11 +94,13 @@ function loadSource(url) {
 }
 
 function useFallback() {
-  const fallback = playback?.media?.fallback;
-  if (!fallback || fallbackSource || !video.getAttribute('src')) return false;
-  fallbackSource = fallback;
-  loadSource(fallbackSource);
-  return true;
+  while (fallbackSources.length) {
+    const candidate = fallbackSources.shift();
+    if (!candidate || candidate === video.getAttribute('src') || attemptedSources.includes(candidate)) continue;
+    loadSource(candidate);
+    return true;
+  }
+  return false;
 }
 
 function waitingMessage(message = '') {
@@ -184,19 +189,25 @@ function showPlayback(value) {
     showScreenComment();
     if (avatar.hasAttribute('src')) avatar.removeAttribute('src');
     avatar.hidden = true;
-    clipKey = fallbackSource = bufferingSince = stalledSince = undefined;
+    clipKey = sourceKey = bufferingSince = stalledSince = undefined;
+    fallbackSources = attemptedSources = [];
     waitingMessage(media?.unavailable ? 'Cette vidéo est disponible sur l’ordinateur.' : 'En attente d’une vidéo sur XScroll…');
     reportAudio();
     return;
   }
   const key = media.key || media.url;
-  if (clipKey !== key) {
+  const nextSourceKey = `${key}:${media.url}`;
+  if (sourceKey !== nextSourceKey) {
     clipKey = key;
-    fallbackSource = appliedJump = stalledSince = undefined;
+    sourceKey = nextSourceKey;
+    fallbackSources = (media.fallbacks || []).concat(media.fallback || [])
+      .filter((url, index, list) => url && url !== media.url && list.indexOf(url) === index);
+    attemptedSources = [];
+    appliedJump = stalledSince = undefined;
   }
   if (media.stalled) stalledSince ??= received;
   else stalledSince = undefined;
-  loadSource(fallbackSource || media.url);
+  loadSource(media.url);
   video.dataset.fit = media.fit;
   video.loop = media.loop !== false;
   subtitle.hidden = !media.subtitle;

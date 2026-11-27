@@ -102,6 +102,22 @@ test('a display avatar uses the public profile CDN path without parameters', () 
   }
 });
 
+test('screen playback keeps a bounded list of trusted MP4 fallback variants', () => {
+  const media = screenMedia({
+    url: 'https://video.twimg.com/current.mp4',
+    fallback: 'https://video.twimg.com/fallback.mp4',
+    fallbacks: [
+      'https://video.twimg.com/low.mp4?tag=4&token=secret',
+      'https://evil.example/clip.mp4',
+      'https://video.twimg.com/current.mp4',
+    ],
+  });
+  assert.deepEqual(media.fallbacks, [
+    'https://video.twimg.com/fallback.mp4',
+    'https://video.twimg.com/low.mp4?tag=4',
+  ]);
+});
+
 test('a fullscreen reply is safely included in the external screen video state', () => {
   const media = screenMedia({
     url: 'https://video.twimg.com/public.mp4',

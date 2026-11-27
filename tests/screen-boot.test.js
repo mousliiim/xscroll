@@ -169,6 +169,31 @@ test('classic fallback uses the live screen event stream for comment and playbac
   assert.equal(elements['comment-text'].textContent, 'Next reply');
 });
 
+test('classic fallback advances through every compatible media variant after decoder errors', () => {
+  const { elements, requests, tick } = setup();
+  requests[0].respond(200, { phase: 'pending', code: '482731' });
+  tick();
+  requests[1].respond(200, {
+    phase: 'connected',
+    playback: {
+      paused: false, muted: true, rate: 1, age: 0,
+      media: {
+        url: '/api/screen/media?url=high',
+        fallbacks: ['/api/screen/media?url=low', '/api/screen/media?url=lowest'],
+        time: 0, duration: 30, loop: true, fit: 'contain',
+      },
+    },
+  });
+  const video = elements['display-video'];
+  assert.equal(video.src, '/api/screen/media?url=high');
+  video.listeners.error();
+  assert.equal(video.src, '/api/screen/media?url=low');
+  video.listeners.error();
+  assert.equal(video.src, '/api/screen/media?url=lowest');
+  video.listeners.error();
+  assert.equal(elements.wait.textContent, 'Cet écran ne peut pas lire la vidéo.');
+});
+
 test('remote server exposes the classic screen bootstrap to TV browsers', async t => {
   const { server } = createRemoteServer();
   server.listen(0, '127.0.0.1');

@@ -9,6 +9,7 @@ import { createConversation } from '../player/conversation.js';
 import { createFeed } from '../player/feed.js';
 import { createPlayerWindow } from '../player/window.js';
 import { handlePlayerKeys } from '../player/keyboard.js';
+import { screenVideoSources } from '../player/selection.js';
 import { readSetting, saveSetting } from '../player/settings.js';
 import { createXClient } from '../x/client.js';
 import { createPostActions } from '../x/actions.js';
@@ -143,16 +144,13 @@ function mount() {
 
   function displayURL() {
     const item = deck.clip();
-    return item?.screenRestricted ? '' : screenMediaURL(deck.video()?.src);
+    if (item?.screenRestricted) return '';
+    return screenMediaURL(screenVideoSources(item).url || deck.video()?.src);
   }
 
-  function displayFallback(clip, url) {
-    const current = clip.variants.find(variant => screenMediaURL(variant.url) === url);
-    const height = Number.parseInt(current?.label, 10) || 720;
-    return clip.variants.find(variant => {
-      const size = Number.parseInt(variant.label, 10);
-      return size > 0 && size <= 720 && size < height;
-    })?.url;
+  function displayFallbacks(clip, url) {
+    return screenVideoSources(clip).fallbacks.map(screenMediaURL)
+      .filter(candidate => candidate && candidate !== url);
   }
 
   function routeDisplay(connected, audio) {
@@ -180,7 +178,7 @@ function mount() {
       post: engagement ? { id: clip.tweetId, author: clip.user, ...engagement.stats, pending: [...engagement.pending] } : null,
       postResults: [...postResults.values()],
       media: url ? {
-        url, fallback: displayFallback(clip, url), key: `${clip.tweetId}:${clip.mediaIndex ?? 0}`, jump: deck.seekVersion(),
+        url, fallbacks: displayFallbacks(clip, url), key: `${clip.tweetId}:${clip.mediaIndex ?? 0}`, jump: deck.seekVersion(),
         time: video.currentTime, duration: video.duration, fit: view.host.dataset.fit,
         text: clip.text, author: clip.user, name: clip.name, avatar: clip.avatar, stalled: video.readyState < 3 || video.seeking,
         subtitle: captions.cue, loop: video.loop, screenComment: conversation.fullscreenReply(),

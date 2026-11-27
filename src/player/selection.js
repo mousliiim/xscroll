@@ -36,6 +36,27 @@ export function selectVideo(selection, clips) {
   return hasMediaHint ? undefined : samePost[0];
 }
 
+export function screenVideoSources(clip) {
+  const variants = (clip?.variants || []).map(variant => ({
+    url: variant.url,
+    size: Number.parseInt(variant.label, 10),
+    label: variant.label,
+  })).filter(variant => typeof variant.url === 'string' && variant.url);
+  const compatible = variants.filter(variant => variant.size > 0 && variant.size <= 480)
+    .sort((a, b) => b.size - a.size);
+  const known = variants.filter(variant => variant.size > 0).sort((a, b) => a.size - b.size);
+  const preferred = compatible[0] || known[0] || variants.at(-1);
+  const fallbacks = variants.filter(variant => variant.url !== preferred?.url &&
+    (variant.size > 0 && variant.size <= 720 || variant.label === 'Original'))
+    .sort((a, b) => {
+      const firstGroup = a.size > 0 && a.size <= 480 ? 0 : 1;
+      const secondGroup = b.size > 0 && b.size <= 480 ? 0 : 1;
+      return firstGroup - secondGroup ||
+        (firstGroup ? (a.size || Infinity) - (b.size || Infinity) : b.size - a.size);
+    });
+  return { url: preferred?.url || '', fallbacks: fallbacks.map(variant => variant.url) };
+}
+
 export function directVideo(selection) {
   const url = mediaURL(selection.source, 'video.twimg.com');
   if (!isPostId(selection.tweetId) || !url || !/\.mp4$/i.test(new URL(url).pathname)) return undefined;
