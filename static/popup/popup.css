@@ -58,3 +58,15 @@ kbd { padding: 0 4px; border: 1px solid var(--line); border-radius: 4px; font: i
 #remote-info, #remote-urls { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
 #remote-urls { padding-left: 15px; overflow-wrap: anywhere; }
 #remote-urls a { color: inherit; }
+
+footer { justify-content: space-between; gap: 10px; }
+.language-select {
+  max-width: 100%;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 5px 4px;
+  font: 600 11px system-ui, sans-serif;
+  cursor: pointer;
+}

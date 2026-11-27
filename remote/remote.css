@@ -219,3 +219,8 @@ label { display: inline-block; margin-bottom: 7px; color: #ddd; font-size: 13px;
 .screen-link-row input { width: 100%; min-height: 46px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; color: inherit; background: var(--control); font-size: 16px; }
 #screen-link { font-size: 14px; }
 #external-code { letter-spacing: .18em; font-variant-numeric: tabular-nums; }
+
+.language-footer { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 14px; }
+.language-footer label { margin: 0; color: var(--muted); }
+.language-select { min-height: 40px; padding: 6px; border: 1px solid var(--line); border-radius: 9px; background: var(--control); color: inherit; font: 650 16px system-ui, sans-serif; }
+.language-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }

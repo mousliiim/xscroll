@@ -1,10 +1,16 @@
 [CmdletBinding()]
 param(
     [string] $InstallRoot = (Join-Path $env:LOCALAPPDATA 'XScroll'),
-    [switch] $NoOpen
+    [switch] $NoOpen,
+    [ValidateSet('auto', 'en', 'fr')][string] $Language = 'auto'
 )
 
 $ErrorActionPreference = 'Stop'
+$useFrench = $Language -eq 'fr' -or ($Language -eq 'auto' -and (Get-UICulture).TwoLetterISOLanguageName -eq 'fr')
+function Localize([string] $English, [string] $French) {
+    if ($useFrench) { return $French }
+    return $English
+}
 
 function Test-XScrollFolder([string] $Folder) {
     $manifestPath = Join-Path $Folder 'manifest.json'
@@ -17,7 +23,7 @@ function Test-XScrollFolder([string] $Folder) {
     }
 }
 
-$files = @('manifest.json', 'content.js', 'observe.js', 'background.js', 'icons', 'popup', 'LICENSE', 'THIRD_PARTY_LICENSES.txt')
+$files = @('manifest.json', 'content.js', 'observe.js', 'background.js', 'icons', 'popup', '_locales', 'LICENSE', 'THIRD_PARTY_LICENSES.txt')
 $source = @((Join-Path $PSScriptRoot 'extension'), $PSScriptRoot) | Where-Object {
     $candidate = $_
     (Test-XScrollFolder $candidate) -and @($files | Where-Object {
@@ -26,7 +32,7 @@ $source = @((Join-Path $PSScriptRoot 'extension'), $PSScriptRoot) | Where-Object
 } | Select-Object -First 1
 
 if (-not $source) {
-    throw 'Fichiers introuvables. Extrais completement XScroll.zip avant de lancer ce script.'
+    throw (Localize 'Extract all of XScroll.zip before running this script.' 'Extrais completement XScroll.zip avant de lancer ce script.')
 }
 
 $root = [System.IO.Path]::GetFullPath($InstallRoot)
@@ -38,7 +44,7 @@ if ([System.IO.Path]::GetFullPath($source) -ne $target) {
     $backup = Join-Path $root ("backup-$token")
 
     if ((Test-Path -LiteralPath $target) -and -not (Test-XScrollFolder $target)) {
-        throw "Un autre dossier existe deja ici : $target"
+        throw (Localize "Another folder already exists here: $target" "Un autre dossier existe deja ici : $target")
     }
 
     New-Item -ItemType Directory -Path $stage | Out-Null
@@ -46,7 +52,7 @@ if ([System.IO.Path]::GetFullPath($source) -ne $target) {
         foreach ($file in $files) {
             Copy-Item -LiteralPath (Join-Path $source $file) -Destination $stage -Recurse
         }
-        if (-not (Test-XScrollFolder $stage)) { throw 'Le manifeste copie est invalide.' }
+        if (-not (Test-XScrollFolder $stage)) { throw (Localize 'The copied manifest is invalid.' 'Le manifeste copie est invalide.') }
         if (Test-Path -LiteralPath $target) { Move-Item -LiteralPath $target -Destination $backup }
         try {
             Move-Item -LiteralPath $stage -Destination $target
@@ -60,13 +66,13 @@ if ([System.IO.Path]::GetFullPath($source) -ne $target) {
     }
 }
 
-Write-Host "Dossier XScroll : $target"
-Write-Host "Dans chrome://extensions : Mode developpeur > Charger l'extension non empaquetee."
-Write-Host 'Colle le chemin ci-dessus. Si XScroll est deja charge, clique sur Recharger.'
+Write-Host (Localize "XScroll folder: $target" "Dossier XScroll : $target")
+Write-Host (Localize "In chrome://extensions, turn on Developer mode and click Load unpacked." "Dans chrome://extensions, active le mode developpeur puis clique sur Charger l'extension non empaquetee.")
+Write-Host (Localize 'Paste the path above. If XScroll is already loaded, click Reload.' 'Colle le chemin ci-dessus. Si XScroll est deja charge, clique sur Recharger.')
 
 if (-not $NoOpen) {
     if (Get-Command Set-Clipboard -ErrorAction SilentlyContinue) {
-        try { Set-Clipboard -Value $target } catch { Write-Warning 'Copie le chemin affiche ci-dessus.' }
+        try { Set-Clipboard -Value $target } catch { Write-Warning (Localize 'Copy the path shown above.' 'Copie le chemin affiche ci-dessus.') }
     }
     $chrome = @($env:LOCALAPPDATA, $env:ProgramFiles, ${env:ProgramFiles(x86)}) | Where-Object { $_ } |
         ForEach-Object { Join-Path $_ 'Google\Chrome\Application\chrome.exe' } |

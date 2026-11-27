@@ -1,3 +1,5 @@
+import { attribute, language, pageLanguage, text as write } from './language.mjs';
+
 const find = selector => document.querySelector(selector);
 const pairing = find('#pairing');
 const form = find('#pair');
@@ -42,7 +44,8 @@ const screenSubmit = screenPair.querySelector('button');
 const disconnectScreen = find('#disconnect-screen');
 const screenFeedback = find('#screen-feedback');
 const buttons = new Map([...player.querySelectorAll('[data-command]')].map(button => [button.dataset.command, button]));
-const rateFormat = new Intl.NumberFormat('fr', { maximumFractionDigits: 2 });
+const rateFormats = Object.fromEntries(['en', 'fr'].map(locale => [locale, new Intl.NumberFormat(locale, { maximumFractionDigits: 2 })]));
+const speedLabel = rate => `${rateFormats[language()].format(rate)}×`;
 let paired = false, available = false, playable = false, online = false;
 let polling = false, pairingNow = false, discoverySending = false, revision = 0;
 let pending, discovery;
@@ -51,7 +54,7 @@ const pendingRates = new Map();
 let screenConnected = false, screenSending = false;
 screenLink.value = new URL('/screen', location.origin).href;
 
-function write(element, message) {
+function raw(element, message) {
   if (element.textContent !== message) element.textContent = message;
 }
 
@@ -63,7 +66,7 @@ function connection(state, label) {
 
 function renderPost() {
   const id = post?.id;
-  write(remoteAuthor, post?.author ? '@' + post.author : '');
+  raw(remoteAuthor, post?.author ? '@' + post.author : '');
   remoteAuthor.hidden = !post?.author;
   for (const [key, request] of pendingPosts) {
     const result = postResults.find(item => item.id === request.id);
@@ -125,7 +128,7 @@ function renderCode() {
   if (code.value !== digits) code.value = digits;
   const cursor = Math.min(code.selectionStart ?? digits.length, slots.length - 1);
   for (const [index, slot] of slots.entries()) {
-    write(slot, digits[index] || '');
+    raw(slot, digits[index] || '');
     slot.toggleAttribute('data-caret', index === cursor);
   }
   pairSubmit.disabled = !online || pairingNow || digits.length !== slots.length;
@@ -141,13 +144,13 @@ function renderDiscovery() {
   const phase = current?.phase || '';
   const isSearch = current?.command === 'search';
   const messages = {
-    loading: isSearch ? `Recherche « ${current.topic} » sur X…` : 'Recherche de vidéos inédites…',
-    ready: isSearch ? `Fil « ${current.topic} » lancé sur l’ordinateur.` : 'Nouveau fil lancé sur l’ordinateur.',
-    empty: isSearch ? `Aucune nouvelle vidéo pour « ${current.topic} ».` : 'Aucune nouvelle vidéo pour le moment.',
+    loading: isSearch ? 'Recherche « {topic} » sur X…' : 'Recherche de vidéos inédites…',
+    ready: isSearch ? 'Fil « {topic} » lancé sur l’ordinateur.' : 'Nouveau fil lancé sur l’ordinateur.',
+    empty: isSearch ? 'Aucune nouvelle vidéo pour « {topic} ».' : 'Aucune nouvelle vidéo pour le moment.',
     error: 'X n’a pas chargé la recherche. Réessaie dans un instant.',
   };
   discoverStatus.dataset.phase = phase;
-  write(discoverStatus, available ? messages[phase] || '' : '');
+  write(discoverStatus, available ? messages[phase] || '' : '', { topic: current?.topic });
 }
 
 function renderControls() {
@@ -324,9 +327,8 @@ function drawSpeed(rate, position = rate) {
   const normal = 100 * .75 / 1.75;
   const percent = 100 * (position - .25) / 1.75;
   speedRange.value = position;
-  const label = `${rateFormat.format(rate)}×`;
-  speedRange.setAttribute('aria-valuetext', `${rateFormat.format(position)}×`);
-  write(speedOutput, label);
+  attribute(speedRange, 'aria-valuetext', () => speedLabel(position));
+  write(speedOutput, () => speedLabel(rate));
   speedTrack.dataset.rate = rate < 1 ? 'slow' : rate > 1 ? 'fast' : 'normal';
   speedTrack.style.setProperty('--speed-start', `${Math.min(normal, percent)}%`);
   speedTrack.style.setProperty('--speed-end', `${Math.max(normal, percent)}%`);
@@ -428,6 +430,7 @@ document.addEventListener('keydown', event => {
   if (command && playable) { event.preventDefault(); void send(command); }
 });
 
+pageLanguage();
 void update();
 setInterval(() => { if (!document.hidden) void update(); }, 1200);
 document.addEventListener('visibilitychange', () => {

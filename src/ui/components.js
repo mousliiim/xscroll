@@ -1,3 +1,4 @@
+import { language } from '../../remote/language.mjs';
 import { icon } from './icons.js';
 
 export const button = (name, title, label = '') =>
@@ -8,7 +9,8 @@ export const choice = (name, value, label, glyph) =>
   `<button type="button" class="choice" data-action="${name}" data-value="${value}" aria-pressed="false">${glyph ? icon(glyph) : ''}<span>${label}</span>${icon('check')}</button>`;
 export const menu = (name, title, content) =>
   `<section class="flyout" id="menu-${name}" aria-label="${title}" hidden><p class="flyout-heading">${title}</p>${content}</section>`;
-export const rateLabel = value => `${value}×`;
+const rateFormats = Object.fromEntries(['en', 'fr'].map(locale => [locale, new Intl.NumberFormat(locale, { maximumFractionDigits: 2 })]));
+export const rateLabel = value => `${rateFormats[language()].format(value)}×`;
 export const shortcuts = [
   ['Play / pause', 'Space'], ['Previous / next video', '↑ / ↓ · K / J'], ['Seek 5 seconds', '← / →'],
   ['Slower / faster', 'Shift + ← / →'], ['Reset playback speed', '0'], ['Mute / unmute', 'M'],

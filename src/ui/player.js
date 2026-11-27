@@ -1,3 +1,4 @@
+import { attribute, language, localizeMarkup, refreshLanguage, text, translate } from '../../remote/language.mjs';
 import { icon } from './icons.js';
 import { button, choice, menu, menuButton, rateLabel, shortcuts } from './components.js';
 import { createOverlays } from './overlays.js';
@@ -96,6 +97,9 @@ export function createPlayerView(actions) {
         ${choice('theme', 'system', 'System', 'system')}
         ${choice('theme', 'light', 'Light', 'sun')}
         ${choice('theme', 'dark', 'Dark', 'appearance')}
+        <p class="flyout-heading flyout-section">Language</p>
+        ${choice('language', 'en', 'English')}
+        ${choice('language', 'fr', 'Français')}
         ${menuButton('help', 'Keyboard shortcuts (?)', `${icon('shortcuts')}<span>Keyboard shortcuts</span><kbd>?</kbd>`)}
       `)}
       ${menu('size', 'Window size', `
@@ -121,6 +125,8 @@ export function createPlayerView(actions) {
         </div>
       </section>
     </div>`;
+  host.lang = language();
+  localizeMarkup(shadow);
   const get = selector => shadow.querySelector(selector);
   const control = name => get(`button[data-action="${name}"]`);
   const track = get('.track');
@@ -134,7 +140,8 @@ export function createPlayerView(actions) {
   const shell = get('.shell');
   const speedControls = createSpeedControls(shadow, actions.speed, actions.speedPreview);
   const menuTrigger = name => get(`[data-menu="${name}"]`);
-  const numbers = new Intl.NumberFormat(undefined, { notation: 'compact' });
+  const counters = Object.fromEntries(['en', 'fr'].map(locale => [locale, new Intl.NumberFormat(locale, { notation: 'compact' })]));
+  const countLabel = value => counters[language()].format(value);
   answersButton.setAttribute('aria-expanded', 'false');
   answersButton.setAttribute('aria-controls', 'thread');
   let noticeTimer, qualityMarkup;
@@ -146,12 +153,12 @@ export function createPlayerView(actions) {
       button.setAttribute('aria-pressed', String(button.dataset.value === String(value)));
     }
   };
+  setPressed('language', language());
   const setControl = (name, glyph, title) => {
     const el = control(name);
-    if (el.title === title) return;
-    el.title = title;
-    el.setAttribute('aria-label', title);
-    el.querySelector('svg').outerHTML = icon(glyph);
+    if (el.title !== translate(title)) el.querySelector('svg').outerHTML = icon(glyph);
+    attribute(el, 'title', title);
+    attribute(el, 'aria-label', title);
   };
   const clock = time => {
     if (!Number.isFinite(time)) return '0:00';
@@ -215,10 +222,16 @@ export function createPlayerView(actions) {
 
   return {
     host, shadow, track, replies,
-    empty(text, retry = '') {
-      get('.empty span').textContent = text;
+    empty(message, retry = '', values) {
+      text(get('.empty span'), message, values);
       control('retry').hidden = !retry;
-      if (retry) control('retry').textContent = retry;
+      if (retry) text(control('retry'), retry);
+    },
+    language(locale) {
+      host.lang = locale;
+      setPressed('language', locale);
+      refreshLanguage(shadow);
+      placeMenu();
     },
     stage: get('.stage'), float: control('float'), dismissMenu, placeMenu,
     focus: () => (shadow.fullscreenElement || shell).focus({ preventScroll: true }),
@@ -233,14 +246,15 @@ export function createPlayerView(actions) {
       const markup = options.map(([key, text]) => choice('quality', key, text)).join('');
       if (qualityMarkup !== markup) {
         choices.innerHTML = markup;
+        localizeMarkup(choices);
         qualityMarkup = markup;
         placeMenu();
       }
       setPressed('quality', selected);
-      get('.quality-label').textContent = label;
+      text(get('.quality-label'), label);
     },
     speed(rate) {
-      menuTrigger('speed').querySelector('span').textContent = rateLabel(rate);
+      text(menuTrigger('speed').querySelector('span'), () => rateLabel(rate));
       setPressed('speed', rate);
       speedControls.setTarget(rate);
     },
@@ -252,8 +266,8 @@ export function createPlayerView(actions) {
         const value = values[index];
         mark.hidden = value === undefined || !duration;
         if (!mark.hidden) mark.style.left = `${value / duration * 100}%`;
-        control(key).lastElementChild.textContent = value === undefined ? (index ? 'Set end' : 'Set start') :
-          `${clock(value)}.${Math.floor(value * 10) % 10}`;
+        text(control(key).lastElementChild, value === undefined ? (index ? 'Set end' : 'Set start') :
+          `${clock(value)}.${Math.floor(value * 10) % 10}`);
       }
       control('loop-start').disabled = !duration;
       control('loop-end').disabled = !duration || loop?.start === undefined;
@@ -266,8 +280,8 @@ export function createPlayerView(actions) {
       const framing = control('framing');
       const fill = fit === 'fill';
       framing.setAttribute('aria-pressed', String(fill));
-      framing.title = fill ? 'Fill · Cropped to frame (V)' : 'Fit · Whole image (V)';
-      framing.querySelector('span').textContent = fill ? 'Fill' : 'Fit';
+      attribute(framing, 'title', fill ? 'Fill · Cropped to frame (V)' : 'Fit · Whole image (V)');
+      text(framing.querySelector('span'), fill ? 'Fill' : 'Fit');
       if (splitValue !== undefined) {
         layout.style.setProperty('--video-share', `${splitValue}%`);
         split.setAttribute('aria-valuenow', String(splitValue));
@@ -293,14 +307,14 @@ export function createPlayerView(actions) {
         photo.src = video.avatar;
         avatar.replaceChildren(photo);
       }
-      get('.author').textContent = video?.name || handle || 'Post on X';
+      text(get('.author'), () => video?.name || handle || translate('Post on X'));
       get('.post-handle').textContent = video?.name ? handle : '';
       get('.thread-author').textContent = video?.user ? handle : '';
       get('.caption').textContent = video?.text || '';
       get('.caption').hidden = !video?.text;
       const count = video?.replyCount;
-      answersButton.querySelector('span').textContent = count > 0 ? numbers.format(count) : 'Replies';
-      answersButton.setAttribute('aria-label', count > 0 ? `Show ${numbers.format(count)} replies` : 'Show replies');
+      text(answersButton.querySelector('span'), () => count > 0 ? countLabel(count) : translate('Replies'));
+      attribute(answersButton, 'aria-label', () => count > 0 ? translate('Show {count} replies', { count: countLabel(count) }) : translate('Show replies'));
       syncLinks(video?.tweetId);
     },
     playback(video, muted = video?.muted) {
@@ -311,7 +325,7 @@ export function createPlayerView(actions) {
       seek.disabled = !duration;
       seek.style.setProperty('--progress', `${duration ? video.currentTime / duration * 100 : 0}%`);
       get('.time').textContent = `${clock(video?.currentTime)} / ${clock(duration)}`;
-      seek.setAttribute('aria-valuetext', `${clock(video?.currentTime)} of ${clock(duration)}`);
+      attribute(seek, 'aria-valuetext', '{time} of {duration}', { time: clock(video?.currentTime), duration: clock(duration) });
       volume.value = sound ? 0 : video?.volume ?? 1;
       setControl('play', video?.paused ? 'play' : 'pause', video?.paused ? 'Play (Space)' : 'Pause (Space)');
       setControl('volume', sound ? 'mute' : 'volume', sound ? 'Unmute (M)' : 'Mute (M)');
@@ -325,7 +339,7 @@ export function createPlayerView(actions) {
       control('fullscreen').hidden = active;
       menuTrigger('size').hidden = !active;
       setControl('float', active ? 'restore' : 'float', active ? 'Return player to tab' : 'Open floating player');
-      control('float').querySelector('span').textContent = active ? 'Return to tab' : 'Mini player';
+      text(control('float').querySelector('span'), active ? 'Return to tab' : 'Mini player');
     },
     full(active) {
       setControl('fullscreen', active ? 'shrink' : 'fullscreen', active ? 'Exit fullscreen' : 'Fullscreen');
@@ -338,11 +352,11 @@ export function createPlayerView(actions) {
       control('download').disabled = active || !hasVideo;
       control('download').setAttribute('aria-busy', String(active));
     },
-    message(text) {
+    message(message) {
       clearTimeout(noticeTimer);
-      notice.textContent = text;
-      notice.hidden = !text;
-      if (text) noticeTimer = setTimeout(() => { notice.hidden = true; }, 2600);
+      text(notice, message);
+      notice.hidden = !message;
+      if (message) noticeTimer = setTimeout(() => { notice.hidden = true; }, 2600);
     },
     toggleReplies(active, focus) {
       thread.hidden = !active;
@@ -366,9 +380,9 @@ export function createPlayerView(actions) {
         button.setAttribute('aria-pressed', String(pressed));
         button.setAttribute('aria-busy', String(busy));
         const title = pressed ? inverse : verb;
-        button.setAttribute('aria-label', title);
-        button.title = title;
-        button.querySelector('span').textContent = count > 0 && kind !== 'bookmark' ? numbers.format(count) : plain;
+        attribute(button, 'aria-label', title);
+        attribute(button, 'title', title);
+        text(button.querySelector('span'), () => count > 0 && kind !== 'bookmark' ? countLabel(count) : translate(plain));
       }
     },
   };

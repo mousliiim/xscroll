@@ -4,7 +4,7 @@ The extension icon and wordmark were generated with the built-in ImageGen tool. 
 
 - [Extension mark](brand.png)
 - [Wordmark](wordmark.png)
-- [Live Chromium demo](xscroll-demo.gif)
+- [Chromium video preview](xscroll-preview.mp4)
 
 ## Prompts
 

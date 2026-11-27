@@ -1,6 +1,6 @@
 {
   "name": "xscroll",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "description": "Floating video player and post companion for X",

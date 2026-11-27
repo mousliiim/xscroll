@@ -8,9 +8,9 @@
   <title>Télécommande XScroll</title>
   <link rel="icon" href="icon.png">
   <link rel="stylesheet" href="remote.css">
-  <script src="remote.js" defer></script>
+  <script src="remote.js" type="module"></script>
 </head>
-<body>
+<body data-page-title="Télécommande XScroll">
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <symbol id="arrow-up" viewBox="0 0 24 24"><path d="M12 19V5m-7 7 7-7 7 7"/></symbol>
     <symbol id="arrow-down" viewBox="0 0 24 24"><path d="M12 5v14m-7-7 7 7 7-7"/></symbol>
@@ -144,6 +144,10 @@
       </details>
       <p id="notice" class="feedback" role="status"></p>
     </section>
+    <footer class="language-footer">
+      <label for="remote-language">Langue</label>
+      <select id="remote-language" class="language-select" aria-label="Langue"><option value="en">English</option><option value="fr">Français</option></select>
+    </footer>
   </main>
 </body>
 </html>

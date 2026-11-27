@@ -92,3 +92,7 @@ button:focus-visible { outline: 2px solid white; outline-offset: 3px; }
   #caption { max-width: 100%; }
   .caption-avatar { width: 32px; height: 32px; }
 }
+
+.lobby-header { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+.language-select { min-height: 44px; max-width: 100%; padding: 5px; color: inherit; background: #242424; border: 1px solid #474747; border-radius: 10px; font: 630 16px system-ui, sans-serif; }
+.language-select:focus-visible { outline: 2px solid white; outline-offset: 2px; }

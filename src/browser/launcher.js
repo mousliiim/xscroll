@@ -1,3 +1,4 @@
+import { attribute } from '../../remote/language.mjs';
 import icon from '../../static/icons/icon48.png';
 import wordmark from '../../static/icons/wordmark.png';
 import { mediaURL } from '../x/model.js';
@@ -42,8 +43,8 @@ const style = `
 function logoButton(name, withWordmark = false) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.title = name;
-  button.setAttribute('aria-label', name);
+  attribute(button, 'title', name);
+  attribute(button, 'aria-label', name);
   const mark = document.createElement('img');
   mark.src = icon;
   mark.className = 'launcher-icon';

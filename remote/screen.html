@@ -9,10 +9,13 @@
   <link rel="stylesheet" href="/screen.css">
   <script src="/screen.js" type="module"></script>
 </head>
-<body>
+<body data-page-title="XScroll · Écran">
   <main id="lobby" aria-labelledby="lobby-title">
     <div class="lobby-card">
-      <div class="brand"><img src="/icon.png" width="41" height="41" alt="">XScroll</div>
+      <div class="lobby-header">
+        <div class="brand"><img src="/icon.png" width="41" height="41" alt="">XScroll</div>
+        <select class="language-select" aria-label="Langue"><option value="en">English</option><option value="fr">Français</option></select>
+      </div>
       <h1 id="lobby-title">Connecter cet écran</h1>
       <p id="lobby-help">Ouvre <strong>Écran externe</strong> dans la télécommande sur ton téléphone, puis saisis ce code.</p>
       <output id="screen-code" aria-label="Code de l’écran"></output>
@@ -33,6 +36,7 @@
         <p id="text"></p>
       </article>
       <div class="tools">
+        <select class="language-select" aria-label="Langue"><option value="en">English</option><option value="fr">Français</option></select>
         <button type="button" id="screen-audio" aria-pressed="false">Activer le son</button>
         <button type="button" id="fullscreen">Plein écran</button>
       </div>

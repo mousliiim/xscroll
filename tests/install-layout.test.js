@@ -8,6 +8,11 @@ for (const directory of ['../', '../extension/']) {
     const manifest = JSON.parse(readFileSync(new URL('manifest.json', base), 'utf8'));
     assert.equal(manifest.name, 'XScroll');
     assert.equal(manifest.manifest_version, 3);
+    assert.equal(manifest.default_locale, 'en');
+    for (const locale of ['en', 'fr']) {
+      const messages = JSON.parse(readFileSync(new URL(`_locales/${locale}/messages.json`, base), 'utf8'));
+      assert.ok(messages.extensionDescription.message);
+    }
     const resources = [
       manifest.action.default_popup,
       manifest.background.service_worker,

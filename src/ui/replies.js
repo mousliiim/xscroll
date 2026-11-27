@@ -1,3 +1,4 @@
+import { attribute, language, text as label, translate } from '../../remote/language.mjs';
 import { postURL } from '../x/model.js';
 
 export function createRepliesView(host, overlays, onMore) {
@@ -10,9 +11,11 @@ export function createRepliesView(host, overlays, onMore) {
   const get = selector => root.querySelector(selector);
   const control = name => get(`[data-action="${name}"]`);
   const view = () => host.ownerDocument.defaultView;
-  const numbers = new Intl.NumberFormat(undefined, { notation: 'compact' });
-  const dates = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const fullDate = new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'long' });
+  const formats = Object.fromEntries(['en', 'fr'].map(locale => [locale, {
+    count: new Intl.NumberFormat(locale, { notation: 'compact' }),
+    date: new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+    full: new Intl.DateTimeFormat(locale, { dateStyle: 'full', timeStyle: 'long' }),
+  }]));
   let profilePinned, profileTimer;
   let scrollRunning = false, scrollFrame, lastTick, remainder = 0, bottomSince, pauseUntil = 0;
 
@@ -90,7 +93,8 @@ export function createRepliesView(host, overlays, onMore) {
     bio.textContent = reply.bio || '';
     bio.hidden = !reply.bio;
     const count = get('.profile-followers');
-    count.textContent = Number.isFinite(reply.followers) ? `${numbers.format(reply.followers)} followers` : '';
+    label(count, () => Number.isFinite(reply.followers) ?
+      translate('{count} followers', { count: formats[language()].count.format(reply.followers) }) : '');
     count.hidden = !count.textContent;
     profile.querySelector('a').href = `https://x.com/${encodeURIComponent(reply.handle)}`;
     overlays.show('profile', avatar, pinned);
@@ -161,7 +165,7 @@ export function createRepliesView(host, overlays, onMore) {
         author.target = '_blank';
         author.rel = 'noopener';
         const name = document.createElement('strong');
-        name.textContent = reply.name || (reply.handle ? `@${reply.handle}` : 'X user');
+        label(name, () => reply.name || (reply.handle ? `@${reply.handle}` : translate('X user')));
         author.append(name);
         if (reply.handle && reply.name) {
           const handle = document.createElement('span');
@@ -172,19 +176,20 @@ export function createRepliesView(host, overlays, onMore) {
           const time = document.createElement('time');
           time.className = 'reply-time';
           time.dateTime = new Date(reply.date).toISOString();
-          time.textContent = dates.format(new Date(reply.date));
-          time.title = fullDate.format(new Date(reply.date));
+          const date = new Date(reply.date);
+          label(time, () => formats[language()].date.format(date));
+          attribute(time, 'title', () => formats[language()].full.format(date));
           body.append(time);
         }
         const text = document.createElement('p');
-        text.textContent = reply.text || 'View this reply on X';
+        label(text, () => reply.text || translate('View this reply on X'));
         body.prepend(author);
         body.append(text);
         if (/^[a-z0-9_]{1,15}$/i.test(reply.handle)) {
           const preview = host.ownerDocument.createElement('button');
           preview.className = 'avatar-trigger';
           preview.type = 'button';
-          preview.setAttribute('aria-label', `Preview @${reply.handle}`);
+          attribute(preview, 'aria-label', 'Preview @{handle}', { handle: reply.handle });
           preview.setAttribute('aria-controls', 'menu-profile');
           preview.setAttribute('aria-expanded', 'false');
           preview.append(avatar);
@@ -202,11 +207,11 @@ export function createRepliesView(host, overlays, onMore) {
     },
     replyStatus(status, next, pending = false, hasNext = false) {
       const info = get('.thread-status');
-      info.textContent = status;
+      label(info, status);
       info.hidden = !status;
       more.hidden = !next;
       more.disabled = pending;
-      more.textContent = next || '';
+      label(more, next || '');
       more.dataset.nextPage = String(hasNext);
     },
   };

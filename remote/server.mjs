@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { REMOTE_PORT, remoteCommand, remoteStatus } from './protocol.mjs';
 import { configureWslLan, wslLan } from './wsl-lan.mjs';
+import { normalizeLanguage, translate } from './language.mjs';
 import { createScreenSessions } from './screen-sessions.mjs';
 
 const COOKIE = 'xscroll-remote';
@@ -23,6 +24,7 @@ const assets = new Map([
   ['/screen/', ['screen.html', 'text/html; charset=utf-8']],
   ['/screen.css', ['screen.css', 'text/css; charset=utf-8']],
   ['/screen.js', ['screen.js', 'text/javascript; charset=utf-8']],
+  ['/language.mjs', ['language.mjs', 'text/javascript; charset=utf-8']],
   ['/screen-clock.mjs', ['screen-clock.mjs', 'text/javascript; charset=utf-8']],
 ].map(([key, [name, type]]) => [key, { data: readFileSync(new URL(name, import.meta.url)), type }]));
 
@@ -301,6 +303,10 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
   return { server, info: () => ({ code, urls: urls(server.address().port) }) };
 }
 
+const langFlag = process.argv.indexOf('--lang');
+const cliLanguage = normalizeLanguage((langFlag >= 0 && process.argv[langFlag + 1]) || Intl.DateTimeFormat().resolvedOptions().locale);
+const cli = message => translate(message, undefined, cliLanguage);
+
 function start() {
   const lan = process.argv.includes('--lan');
   const route = lan ? wslLan(localIPv4) : null;
@@ -317,20 +323,20 @@ function start() {
     const { urls, code } = remote.info();
     console.log('XScroll Remote');
     for (const url of urls) {
-      console.log(`Téléphone  ${url}`);
-      console.log(`Écran      ${url}screen`);
+      console.log(`${cli('Phone')}  ${url}`);
+      console.log(`${cli('Screen')}  ${url}screen`);
     }
-    console.log(`Ordinateur  http://127.0.0.1:${REMOTE_PORT}/`);
+    console.log(`${cli('Computer')}  http://127.0.0.1:${REMOTE_PORT}/`);
     console.log(`Code  ${code}`);
-    if (!lan) console.log('Ajoute --lan pour autoriser les téléphones sur ton réseau local.');
+    if (!lan) console.log(cli('Add --lan to allow phones on your local network.'));
     if (route?.windows && !process.argv.includes('--configure-lan')) {
-      console.log('WSL (NAT) · Si le téléphone ne se connecte pas, relance avec --lan --configure-lan.');
+      console.log(cli('WSL (NAT) · If the phone cannot connect, restart with --lan --configure-lan.'));
     }
-    if (route && !route.windows) console.log('WSL (NAT) · Aucune adresse Ethernet ou Wi-Fi Windows détectée.');
+    if (route && !route.windows) console.log(cli('WSL (NAT) · No Windows Ethernet or Wi-Fi address found.'));
   });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try { start(); }
-  catch (error) { console.error(`XScroll Remote · ${error.message}`); process.exitCode = 1; }
+  catch (error) { console.error(`XScroll Remote · ${cli(error.message)}`); process.exitCode = 1; }
 }

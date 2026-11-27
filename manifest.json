@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "XScroll",
-  "version": "1.6.0",
-  "description": "Watch and swipe through X videos with a floating player, live playback speed, replies, and post actions.",
+  "version": "1.7.0",
+  "description": "__MSG_extensionDescription__",
   "minimum_chrome_version": "121",
   "permissions": [
     "activeTab",
@@ -49,5 +49,6 @@
   ],
   "background": {
     "service_worker": "extension/background.js"
-  }
+  },
+  "default_locale": "en"
 }

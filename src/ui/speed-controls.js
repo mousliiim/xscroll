@@ -1,3 +1,4 @@
+import { attribute, text } from '../../remote/language.mjs';
 import { MAX_RATE, MIN_RATE, normalizeRate } from '../player/rate.js';
 import { rateLabel } from './components.js';
 import { icon } from './icons.js';
@@ -38,6 +39,9 @@ export function createSpeedControls(root, adjust, preview) {
   const readout = panel.querySelector('.speed-value');
   const mode = panel.querySelector('.speed-mode');
   const dial = panel.querySelector('.speed-dial');
+  for (const button of panel.querySelectorAll('[data-action="speed"][aria-pressed]')) {
+    text(button, () => rateLabel(Number(button.dataset.value)));
+  }
   const normal = 100 * (1 - MIN_RATE) / (MAX_RATE - MIN_RATE);
   dial.style.setProperty('--speed-normal', `${normal}%`);
   let held;
@@ -45,17 +49,15 @@ export function createSpeedControls(root, adjust, preview) {
   function setTarget(rate) {
     const percent = 100 * (rate - MIN_RATE) / (MAX_RATE - MIN_RATE);
     range.value = rate;
-    range.setAttribute('aria-valuetext', rateLabel(rate));
+    attribute(range, 'aria-valuetext', () => rateLabel(rate));
     dial.style.setProperty('--speed-start', `${Math.min(normal, percent)}%`);
     dial.style.setProperty('--speed-end', `${Math.max(normal, percent)}%`);
     dial.dataset.rate = rate < 1 ? 'slow' : rate > 1 ? 'fast' : 'normal';
   }
 
   function setActual(rate) {
-    const next = rateLabel(normalizeRate(rate));
-    if (readout.textContent === next) return;
-    readout.textContent = next;
-    mode.textContent = rate < 1 ? 'Slow motion' : rate > 1 ? 'Fast forward' : 'Normal speed';
+    text(readout, () => rateLabel(normalizeRate(rate)));
+    text(mode, rate < 1 ? 'Slow motion' : rate > 1 ? 'Fast forward' : 'Normal speed');
   }
 
   function release() {

@@ -33,6 +33,7 @@ await writeFile(path.join(output, 'THIRD_PARTY_LICENSES.txt'), licenses.join('\n
 const manifest = JSON.parse(await readFile(path.join(output, 'manifest.json'), 'utf8'));
 const prefix = value => `extension/${value}`;
 const icons = values => Object.fromEntries(Object.entries(values).map(([size, value]) => [size, prefix(value)]));
+await cp(path.join(output, '_locales'), path.join(root, '_locales'), { recursive: true });
 const rootManifest = {
   ...manifest,
   icons: icons(manifest.icons),

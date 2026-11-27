@@ -1,3 +1,5 @@
+import { localizeMarkup, refreshLanguage, text } from '../../remote/language.mjs';
+import { extensionLanguage, saveLanguage } from './language.js';
 import { REMOTE_PERMISSION } from '../../remote/protocol.mjs';
 
 const remotePanel = document.querySelector('#remote-panel');
@@ -10,10 +12,10 @@ const remoteRequest = (type, tabId) => chrome.runtime.sendMessage({ channel: 'xs
 
 function renderRemote(info) {
   remoteEnabled = Boolean(info?.enabled);
-  remoteToggle.textContent = remoteEnabled ? 'Disconnect phone remote' : 'Enable phone remote';
+  text(remoteToggle, remoteEnabled ? 'Disconnect phone remote' : 'Enable phone remote');
   remoteInfo.hidden = !info?.code && !info?.offline;
-  remoteInfo.textContent = info?.code ? `Pairing code: ${info.code}` :
-    info?.offline ? 'Start the local server with npm run remote -- --lan, then connect.' : '';
+  text(remoteInfo, info?.code ? 'Pairing code: {code}' :
+    info?.offline ? 'Start the local server with npm run remote -- --lan, then connect.' : '', { code: info?.code });
   remoteUrls.replaceChildren();
   for (const address of info?.urls || []) {
     if (!/^http:\/\/\d+\.\d+\.\d+\.\d+:4781\/$/.test(address)) continue;
@@ -43,12 +45,13 @@ remoteToggle.addEventListener('click', async () => {
 const status = document.querySelector('#status');
 const button = document.querySelector('#launch');
 const label = button.firstChild;
+const languagePicker = document.querySelector('.language-select');
 const channel = 'xscroll.popup';
 let activate;
 
-function display(text, action, run) {
-  status.textContent = text;
-  label.textContent = action;
+function display(message, action, run) {
+  text(status, message);
+  text(label, action);
   activate = run;
   button.disabled = !run;
 }
@@ -92,4 +95,10 @@ button.addEventListener('click', async () => {
   try { await activate(); }
   catch { display('Couldn’t reach this tab. Open X to try again.', 'Go to X', openSite); }
 });
-initialize().catch(() => display('Open X in a tab to start watching.', 'Go to X', openSite));
+localizeMarkup(document.body);
+languagePicker.addEventListener('change', () => { void saveLanguage(languagePicker.value); });
+extensionLanguage(locale => {
+  document.documentElement.lang = locale;
+  languagePicker.value = locale;
+  refreshLanguage(document.body);
+}).then(initialize).catch(() => display('Open X in a tab to start watching.', 'Go to X', openSite));

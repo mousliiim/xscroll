@@ -1,3 +1,4 @@
+import { pageLanguage, text as write } from './language.mjs';
 import { screenClock } from './screen-clock.mjs';
 
 const find = selector => document.querySelector(selector);
@@ -24,7 +25,7 @@ let clipKey, fallbackSource, appliedJump, needsPosition = false, bufferingSince,
 const SNAPSHOT_TIMEOUT = 8000;
 const BUFFER_LIMIT = 2800;
 
-function write(el, message) {
+function raw(el, message) {
   if (el.textContent !== message) el.textContent = message;
 }
 
@@ -156,15 +157,15 @@ function showPlayback(value) {
   video.dataset.fit = media.fit;
   caption.hidden = !media.author && !media.name && !media.text;
   const handle = media.author ? '@' + media.author : '';
-  write(authorName, media.name || handle || 'X');
-  write(author, media.name ? handle : '');
-  write(initial, (media.name || media.author || 'X').slice(0, 1).toUpperCase());
+  raw(authorName, media.name || handle || 'X');
+  raw(author, media.name ? handle : '');
+  raw(initial, (media.name || media.author || 'X').slice(0, 1).toUpperCase());
   if ((avatar.getAttribute('src') || '') !== media.avatar) {
     avatar.hidden = !media.avatar;
     if (media.avatar) avatar.src = media.avatar;
     else avatar.removeAttribute('src');
   }
-  write(text, media.text);
+  raw(text, media.text);
   syncVideo();
 }
 
@@ -173,7 +174,7 @@ function render(result) {
   phase = result.phase;
   lobby.hidden = phase === 'connected';
   viewer.hidden = !lobby.hidden;
-  write(code, result.code || '');
+  raw(code, result.code || '');
   if (lobby.hidden) {
     if (previous !== 'connected') reportedAudio = false;
     showPlayback(result.playback);
@@ -283,6 +284,7 @@ window.addEventListener('pageshow', event => {
     void poll();
   }
 });
+pageLanguage();
 void poll();
 setInterval(() => {
   if (stream && performance.now() - streamSeen > 6200) {

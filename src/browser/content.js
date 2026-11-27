@@ -1,3 +1,5 @@
+import { refreshLanguage } from '../../remote/language.mjs';
+import { extensionLanguage, saveLanguage } from './language.js';
 import { isSearchHelper, listenForNativeResults, openNativeSearch } from './native-search.js';
 import { screenMediaURL } from '../../remote/protocol.mjs';
 import { createPlayerView } from '../ui/player.js';
@@ -59,6 +61,7 @@ function mount() {
     'loop-end': () => deck.loop('end'),
     'loop-clear': () => deck.loop('clear'),
     theme: setTheme,
+    language: value => { void saveLanguage(value); },
     float: () => windowController.toggle(),
     fullscreen: () => windowController.fullscreen(),
     resize: name => windowController.resize(name),
@@ -284,8 +287,8 @@ function mount() {
     open = true;
     view.host.hidden = false;
     deck.reset();
-    view.empty(discovery?.command === 'search' ? `Searching X for “${discovery.topic}”…` :
-      session.awaitingSeed ? 'Loading the selected video…' : 'Looking for unseen videos…');
+    view.empty(discovery?.command === 'search' ? 'Searching X for “{topic}”…' :
+      session.awaitingSeed ? 'Loading the selected video…' : 'Looking for unseen videos…', '', { topic: discovery?.topic });
     view.message('');
     document.querySelectorAll('video').forEach(video => video.pause());
     refresh();
@@ -313,13 +316,17 @@ function mount() {
 
   return {
     refresh, redrawActions,
+    language(locale) {
+      view.language(locale);
+      for (const button of document.querySelectorAll('#xscroll-launcher, .xscroll-on-video')) refreshLanguage(button);
+    },
     feedStatus({ loading }) {
       if (!open || deck.clip()) return;
       if (session?.discovery?.command === 'search') {
         const topic = session.discovery.topic;
-        const message = loading ? `Searching X for “${topic}”…` :
-          session.failed ? 'X couldn’t load this search. Try again in a moment.' : `No new videos for “${topic}”.`;
-        view.empty(message, loading ? '' : 'Retry');
+        const message = loading ? 'Searching X for “{topic}”…' :
+          session.failed ? 'X couldn’t load this search. Try again in a moment.' : 'No new videos for “{topic}”.';
+        view.empty(message, loading ? '' : 'Retry', { topic });
       } else if (session?.awaitingSeed) {
         view.empty(loading ? 'Loading the selected video…' : 'Couldn’t load the selected video.', loading ? '' : 'Retry');
       } else {
@@ -332,9 +339,13 @@ function mount() {
   };
 }
 
+async function initializePlayer() {
+  await extensionLanguage(locale => app?.language(locale));
+  app = mount();
+}
 if (isSearchHelper) listenForNativeResults();
-else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { app = mount(); }, { once: true });
-else app = mount();
+else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializePlayer, { once: true });
+else void initializePlayer();
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id || !message) return;
