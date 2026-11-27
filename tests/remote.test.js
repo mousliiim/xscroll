@@ -60,11 +60,22 @@ test('a phone action identifies the exact post and its intended state', () => {
 test('validates remote playback settings and keeps comments bounded', () => {
   assert.deepEqual(remoteCommand({ command: 'volume', volume: .437 }), { command: 'volume', volume: .44 });
   assert.equal(remoteCommand({ command: 'volume', volume: 2 }), null);
+  assert.deepEqual(remoteCommand({ command: 'comment-size', value: 125 }), { command: 'comment-size', value: 125 });
+  assert.equal(remoteCommand({ command: 'comment-size', value: 150 }), null);
+  assert.equal(remoteCommand({ command: 'comment-size', value: 83 }), null);
+  assert.deepEqual(remoteCommand({ command: 'comment-transparency', value: 45 }), { command: 'comment-transparency', value: 45 });
+  assert.equal(remoteCommand({ command: 'comment-transparency', value: 70 }), null);
+  assert.equal(remoteCommand({ command: 'comment-transparency', value: 44 }), null);
   assert.equal(remoteCommand({ command: 'phone-replies', open: 'yes' }), null);
   assert.deepEqual(remoteCommand({ command: 'phone-replies', open: true }), { command: 'phone-replies', open: true });
   const state = remoteStatus({ ready: true, fullscreen: true, autoNext: true, fit: 'fill', captionsAvailable: true,
     comments: { id: '123', phase: 'ready', items: [{ id: '456', author: 'alice', text: 'x'.repeat(500) }, { id: 'bad', text: 'ignored' }] } });
   assert.equal(state.fullscreen, true);
+  assert.equal(state.fullscreenCommentSize, 100);
+  assert.equal(state.fullscreenCommentTransparency, 30);
+  const clampedCard = remoteStatus({ fullscreenCommentSize: 200, fullscreenCommentTransparency: 0 });
+  assert.equal(clampedCard.fullscreenCommentSize, 130);
+  assert.equal(clampedCard.fullscreenCommentTransparency, 5);
   assert.equal(state.autoNext, true);
   assert.equal(state.fit, 'fill');
   assert.equal(state.comments.items.length, 1);

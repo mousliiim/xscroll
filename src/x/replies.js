@@ -1,4 +1,4 @@
-import { identity, isPostId, postText } from './model.js';
+import { identity, isPostId, postStats, postText } from './model.js';
 
 export function extractReplies(json, tweetId, knownReplies) {
   const instructions = json?.data?.threaded_conversation_with_injections_v2?.instructions;
@@ -43,10 +43,13 @@ export function extractReplies(json, tweetId, knownReplies) {
     if (!isReply(candidate)) continue;
     const { tweet, parent } = candidate;
     const legacy = tweet.legacy;
+    const stats = postStats(tweet);
     replies.push({
       id, nested: parent !== tweetId, ...identity(tweet),
       text: postText(tweet.note_tweet?.note_tweet_results?.result?.text ?? tweet.details?.full_text ?? legacy?.full_text),
-      likeCount: Number.isSafeInteger(legacy?.favorite_count) && legacy.favorite_count >= 0 ? legacy.favorite_count : undefined,
+      likeCount: stats.likeCount,
+      repostCount: stats.repostCount,
+      bookmarkCount: stats.bookmarkCount,
       date: typeof legacy?.created_at === 'string' ? legacy.created_at :
         Number.isFinite(tweet.details?.created_at_ms) ? new Date(tweet.details.created_at_ms).toJSON() || '' : '',
     });

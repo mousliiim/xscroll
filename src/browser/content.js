@@ -170,6 +170,8 @@ function mount() {
       rate: video?.playbackRate ?? deck.rate(), rateTarget: deck.rate(), replies: conversation.isOpen(), autoReplies: conversation.isAuto(), discovery: discoveryStatus(),
       fit: view.host.dataset.fit, fullscreen: windowController.fullscreenActive(), fullscreenFailed: windowController.fullscreenFailed(),
       fullscreenComments: conversation.fullscreenComments(),
+      fullscreenCommentSize: conversation.fullscreenCommentSize(),
+      fullscreenCommentTransparency: conversation.fullscreenCommentTransparency(),
       autoNext: deck.autoNext(), captions: captions.enabled, captionsAvailable: captions.available, comments: conversation.phoneComments(),
       post: engagement ? { id: clip.tweetId, author: clip.user, ...engagement.stats, pending: [...engagement.pending] } : null,
       postResults: [...postResults.values()],
@@ -188,6 +190,8 @@ function mount() {
       deck.setRate(command.rate);
     } else if (command.command === 'speed-preview') previewFromPhone(command.rate);
     else if (command.command === 'volume') deck.setVolume(command.volume);
+    else if (command.command === 'comment-size') conversation.setFullscreenCommentSize(command.value);
+    else if (command.command === 'comment-transparency') conversation.setFullscreenCommentTransparency(command.value);
     else if (command.command === 'phone-replies') conversation.setPhoneOpen(command.open);
     else if (command.command === 'post-action') void applyPhonePostAction(command);
     else start(undefined, undefined, command);

@@ -24,6 +24,10 @@ const speedRange = find('#speed-range');
 const speedTrack = find('.speed-track');
 const speedOutput = find('#speed-output');
 const remoteVolume = find('#remote-volume');
+const commentSize = find('#comment-size');
+const commentSizeOutput = find('#comment-size-output');
+const commentTransparency = find('#comment-transparency');
+const commentTransparencyOutput = find('#comment-transparency-output');
 const playbackDialog = find('#playback-dialog');
 const fullscreenCommentsHint = find('#fullscreen-comments-hint');
 const captionHint = find('#caption-hint');
@@ -33,7 +37,7 @@ const openComments = find('#open-comments');
 const commentsList = find('#phone-comments');
 const commentsFeedback = find('#comments-feedback');
 const commentIds = new Set();
-let commentsFor, volumeEditingUntil = 0, captionsAvailable = false;
+let commentsFor, volumeEditingUntil = 0, commentSettingsEditingUntil = 0, captionsAvailable = false;
 const remoteAuthor = find('#remote-author');
 const postFeedback = find('#post-feedback');
 const postButtons = [...player.querySelectorAll('[data-post]')];
@@ -171,6 +175,8 @@ function renderControls() {
   for (const button of [...buttons.values(), ...previews]) button.disabled = !playable;
   speedRange.disabled = !playable;
   remoteVolume.disabled = !playable;
+  commentSize.disabled = !playable;
+  commentTransparency.disabled = !playable;
   openComments.disabled = !playable || !post?.id;
   buttons.get('captions').disabled = !playable || !captionsAvailable;
   hint.hidden = !paired || available;
@@ -225,6 +231,16 @@ function drawVolume(value) {
   attribute(remoteVolume, 'aria-valuetext', () => new Intl.NumberFormat(language(), { style: 'percent' }).format(value / 100));
 }
 
+function drawCommentSettings(size, transparency) {
+  const percent = value => new Intl.NumberFormat(language(), { style: 'percent', maximumFractionDigits: 0 }).format(value / 100);
+  commentSize.value = size;
+  commentTransparency.value = transparency;
+  write(commentSizeOutput, percent(size));
+  write(commentTransparencyOutput, percent(transparency));
+  attribute(commentSize, 'aria-valuetext', percent(size));
+  attribute(commentTransparency, 'aria-valuetext', percent(transparency));
+}
+
 function render(result) {
   online = true;
   paired = Boolean(result.paired);
@@ -248,6 +264,9 @@ function render(result) {
   renderComments(result.state?.comments);
   if (!result.state) return;
   const { paused, muted, rate, rateTarget, replies, autoReplies } = result.state;
+  if (Date.now() >= commentSettingsEditingUntil) {
+    drawCommentSettings(result.state.fullscreenCommentSize, result.state.fullscreenCommentTransparency);
+  }
   const play = buttons.get('toggle-play');
   play.querySelector('use').setAttribute('href', paused ? '#play' : '#pause');
   write(play.querySelector('.play-label'), paused ? 'Lire' : 'Pause');
@@ -389,7 +408,7 @@ form.addEventListener('submit', async event => {
 
 async function send(command, options) {
   const subject = options?.topic;
-  const adjustment = ['speed', 'speed-preview', 'volume'].includes(command);
+  const adjustment = ['speed', 'speed-preview', 'volume', 'comment-size', 'comment-transparency'].includes(command);
   const discovering = command === 'shuffle' || command === 'search';
   if (discovering ? !available || discoverySending : command === 'phone-replies' ? !available : !playable) return;
   if (discovering) {
@@ -461,6 +480,15 @@ remoteVolume.addEventListener('input', () => {
   drawVolume(value);
   queueRate('volume', value / 100);
 });
+
+function changeCommentSetting(input, command) {
+  const value = input.valueAsNumber;
+  commentSettingsEditingUntil = Date.now() + 1800;
+  drawCommentSettings(commentSize.valueAsNumber, commentTransparency.valueAsNumber);
+  void send(command, { value });
+}
+commentSize.addEventListener('input', () => changeCommentSetting(commentSize, 'comment-size'));
+commentTransparency.addEventListener('input', () => changeCommentSetting(commentTransparency, 'comment-transparency'));
 
 const releaseHold = bindHold(previews, button => {
   const rate = Number(button.dataset.previewRate);

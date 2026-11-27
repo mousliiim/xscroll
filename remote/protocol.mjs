@@ -10,6 +10,8 @@ const requestId = value => typeof value === 'string' && /^[a-f0-9]{16}$/.test(va
 const handle = value => typeof value === 'string' && /^\w{1,15}$/.test(value) ? value : '';
 const postErrors = new Set(['changed', 'busy', 'session', 'failed']);
 const phases = new Set(['loading', 'ready', 'empty', 'error']);
+const settingPercent = (value, minimum, maximum, fallback) => Number.isFinite(value) ?
+  minimum + Math.round((Math.max(minimum, Math.min(maximum, value)) - minimum) / 5) * 5 : fallback;
 
 export function remoteTopic(value) {
   if (typeof value !== 'string' || value.length > MAX_TOPIC_LENGTH) return '';
@@ -24,6 +26,11 @@ export function remoteCommand(value) {
   }
   if (value?.command === 'phone-replies') {
     return typeof value.open === 'boolean' ? { command: 'phone-replies', open: value.open } : null;
+  }
+  if (value?.command === 'comment-size' || value?.command === 'comment-transparency') {
+    const [minimum, maximum] = value.command === 'comment-size' ? [80, 130] : [5, 65];
+    return Number.isInteger(value.value) && value.value >= minimum && value.value <= maximum && (value.value - minimum) % 5 === 0 ?
+      { command: value.command, value: value.value } : null;
   }
   if (value?.command === 'speed') {
     const rate = value.rate;
@@ -63,6 +70,8 @@ export function remoteStatus(value) {
     autoNext: value?.autoNext === true,
     fullscreen: value?.fullscreen === true,
     fullscreenComments: value?.fullscreenComments === true,
+    fullscreenCommentSize: settingPercent(value?.fullscreenCommentSize, 80, 130, 100),
+    fullscreenCommentTransparency: settingPercent(value?.fullscreenCommentTransparency, 5, 65, 30),
     fullscreenFailed: value?.fullscreenFailed === true,
     fit: value?.fit === 'fill' ? 'fill' : 'contain',
     captions: value?.captions === true,

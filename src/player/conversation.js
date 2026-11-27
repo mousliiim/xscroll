@@ -3,6 +3,11 @@ import { findPost, postStats } from '../x/model.js';
 import { readSetting, saveSetting } from './settings.js';
 
 const PHONE_PAGE = 24;
+const settingValue = (key, fallback, minimum, maximum) => {
+  const value = Number(readSetting(key, String(fallback)));
+  return Number.isInteger(value) ?
+    minimum + Math.round((Math.max(minimum, Math.min(maximum, value)) - minimum) / 5) * 5 : fallback;
+};
 
 export function createConversation({ client, view, postActions, currentVideo, align }) {
   let threads = new Map();
@@ -10,10 +15,13 @@ export function createConversation({ client, view, postActions, currentVideo, al
   let phoneOpen = false, phoneOffset = 0;
   let automatic = readSetting('auto-replies', 'false') === 'true';
   let overlayEnabled = readSetting('fullscreen-comments', 'false') === 'true';
+  let overlaySize = settingValue('fullscreen-comment-size', 100, 80, 130);
+  let overlayTransparency = settingValue('fullscreen-comment-transparency', 30, 5, 65);
   let fullscreen = false, overlayTimer, repliesShownBeforePage = 0;
   const shownComments = new Set();
   let openOnFirstClip = automatic;
   view.fullscreenComments(overlayEnabled);
+  view.fullscreenCommentStyle(overlaySize, overlayTransparency);
 
   const showingOverlay = () => fullscreen && overlayEnabled && Boolean(clipId);
 
@@ -139,6 +147,20 @@ export function createConversation({ client, view, postActions, currentVideo, al
       showNextComment();
     },
     fullscreenComments: () => overlayEnabled,
+    fullscreenCommentSize: () => overlaySize,
+    fullscreenCommentTransparency: () => overlayTransparency,
+    setFullscreenCommentSize(value) {
+      if (!Number.isInteger(value) || (value - 80) % 5 !== 0 || value < 80 || value > 130) return;
+      overlaySize = value;
+      saveSetting('fullscreen-comment-size', String(overlaySize));
+      view.fullscreenCommentStyle(overlaySize, overlayOpacity);
+    },
+    setFullscreenCommentTransparency(value) {
+      if (!Number.isInteger(value) || (value - 5) % 5 !== 0 || value < 5 || value > 65) return;
+      overlayTransparency = value;
+      saveSetting('fullscreen-comment-transparency', String(overlayTransparency));
+      view.fullscreenCommentStyle(overlaySize, overlayTransparency);
+    },
     toggleFullscreenComments() {
       overlayEnabled = !overlayEnabled;
       saveSetting('fullscreen-comments', overlayEnabled);

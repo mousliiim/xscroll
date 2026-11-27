@@ -38,7 +38,11 @@ export function createPlayerView(actions) {
               <time></time>
             </header>
             <p></p>
-            <div class="fullscreen-comment-likes">${icon('like')}<span></span></div>
+            <div class="fullscreen-comment-stats">
+              <span class="fullscreen-comment-stat" data-stat="like" aria-label="Likes">${icon('like')}<span data-count></span></span>
+              <span class="fullscreen-comment-stat" data-stat="repost" aria-label="Reposts">${icon('repost')}<span data-count></span></span>
+              <span class="fullscreen-comment-stat" data-stat="bookmark" aria-label="Bookmarks">${icon('bookmark')}<span data-count></span></span>
+            </div>
           </aside>
           <div class="controls" hidden>
             <div class="seekbar">
@@ -156,8 +160,13 @@ export function createPlayerView(actions) {
   const fullscreenCommentHandle = get('.fullscreen-comment-handle');
   const fullscreenCommentTime = get('.fullscreen-comment time');
   const fullscreenCommentText = get('.fullscreen-comment > p');
-  const fullscreenCommentLikes = get('.fullscreen-comment-likes');
-  const fullscreenCommentLikeCount = get('.fullscreen-comment-likes span');
+  const fullscreenCommentStats = Object.fromEntries(['like', 'repost', 'bookmark'].map(kind => [
+    kind, {
+      element: get(`.fullscreen-comment-stat[data-stat="${kind}"]`),
+      count: get(`.fullscreen-comment-stat[data-stat="${kind}"] [data-count]`),
+      key: `${kind}Count`,
+    },
+  ]));
   const fullscreenCommentButton = control('fullscreen-comments');
   fullscreenCommentButton.hidden = true;
   fullscreenCommentImage.addEventListener('error', () => {
@@ -381,6 +390,10 @@ export function createPlayerView(actions) {
       fullscreenCommentButton.setAttribute('aria-pressed', String(enabled));
       setControl('fullscreen-comments', 'fullscreen-comments', enabled ? 'Hide on-screen comments' : 'Show on-screen comments');
     },
+    fullscreenCommentStyle(size, transparency) {
+      fullscreenComment.style.setProperty('--comment-scale', String(size / 100));
+      fullscreenComment.style.setProperty('--comment-opacity', String(1 - transparency / 100));
+    },
     fullscreenComment(reply) {
       fullscreenComment.hidden = !reply;
       if (!reply) return;
@@ -403,8 +416,11 @@ export function createPlayerView(actions) {
         fullscreenCommentTime.removeAttribute('datetime');
         fullscreenCommentTime.textContent = '';
       }
-      fullscreenCommentLikes.hidden = !Number.isSafeInteger(reply.likeCount);
-      fullscreenCommentLikeCount.textContent = Number.isSafeInteger(reply.likeCount) ? countLabel(reply.likeCount) : '';
+      for (const { element, count, key } of Object.values(fullscreenCommentStats)) {
+        const value = reply[key];
+        element.hidden = !Number.isSafeInteger(value) || value < 0;
+        count.textContent = Number.isSafeInteger(value) && value >= 0 ? countLabel(value) : '';
+      }
     },
     presentation(enabled) {
       host.toggleAttribute('data-presentation', enabled);

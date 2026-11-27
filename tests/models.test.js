@@ -36,8 +36,9 @@ test('normalizes playable media, avoids duplicate or untrusted media and retains
 test('keeps replies in the selected branch and carries the original timestamp and profile fields', () => {
   const date = '2026-11-27T10:24:00Z';
   const item = (id, parent) => ({ item: { itemContent: { tweet_results: { result: {
-    rest_id: id, core: { user_results: { result: { core: { name: 'A', screen_name: 'alice' }, legacy: { description: 'Profile' } } } },
-    legacy: { conversation_id_str: '1', in_reply_to_status_id_str: parent, created_at: date, full_text: 'Reply', favorite_count: 7 },
+    rest_id: id, counts: { bookmark_count: 4 },
+    core: { user_results: { result: { core: { name: 'A', screen_name: 'alice' }, legacy: { description: 'Profile' } } } },
+    legacy: { conversation_id_str: '1', in_reply_to_status_id_str: parent, created_at: date, full_text: 'Reply', favorite_count: 7, retweet_count: 3 },
   } } } } });
   const payload = { data: { threaded_conversation_with_injections_v2: { instructions: [
     { entries: [
@@ -49,6 +50,8 @@ test('keeps replies in the selected branch and carries the original timestamp an
   assert.deepEqual(result.replies.map(reply => reply.id), ['3', '4']);
   assert.equal(result.replies[0].date, date);
   assert.equal(result.replies[0].likeCount, 7);
+  assert.equal(result.replies[0].repostCount, 3);
+  assert.equal(result.replies[0].bookmarkCount, 4);
   assert.equal(result.replies[0].bio, 'Profile');
   assert.equal(result.cursor, 'more');
 });

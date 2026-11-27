@@ -300,7 +300,7 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
       }
       if (command === 'phone-replies-more' && !commentReaders.has(token)) return reply(response, 403, { error: 'Ouvre les commentaires.' });
       if (discovery) commands = commands.filter(item => item.command.command !== 'search' && item.command.command !== 'shuffle');
-      if (['speed', 'speed-preview', 'volume', 'phone-replies'].includes(command.command)) {
+      if (['speed', 'speed-preview', 'volume', 'phone-replies', 'comment-size', 'comment-transparency'].includes(command.command)) {
         commands = commands.filter(item => item.command.command !== command.command);
       }
       if (commands.length >= 12) return reply(response, 429, { error: 'Le lecteur traite encore tes commandes.' });
