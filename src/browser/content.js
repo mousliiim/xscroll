@@ -151,7 +151,7 @@ function mount() {
     const height = Number.parseInt(current?.label, 10) || 720;
     return clip.variants.find(variant => {
       const size = Number.parseInt(variant.label, 10);
-      return size > 0 && size <= 480 && size < height;
+      return size > 0 && size <= 720 && size < height;
     })?.url;
   }
 
@@ -183,7 +183,7 @@ function mount() {
         url, fallback: displayFallback(clip, url), key: `${clip.tweetId}:${clip.mediaIndex ?? 0}`, jump: deck.seekVersion(),
         time: video.currentTime, duration: video.duration, fit: view.host.dataset.fit,
         text: clip.text, author: clip.user, name: clip.name, avatar: clip.avatar, stalled: video.readyState < 3 || video.seeking,
-        subtitle: captions.cue, loop: video.loop,
+        subtitle: captions.cue, loop: video.loop, screenComment: conversation.fullscreenReply(),
       } : screenConnected && video ? { unavailable: true } : null,
     };
   }, command => {

@@ -7,6 +7,7 @@
   <title>XScroll · Écran</title>
   <link rel="icon" href="/icon.png">
   <link rel="stylesheet" href="/screen.css">
+  <script src="/screen-boot.js" defer></script>
   <script src="/screen.js" type="module"></script>
 </head>
 <body data-page-title="XScroll · Écran">
@@ -19,7 +20,7 @@
       <h1 id="lobby-title">Connecter cet écran</h1>
       <p id="lobby-help">Ouvre <strong>Écran externe</strong> dans la télécommande sur ton téléphone, puis saisis ce code.</p>
       <output id="screen-code" aria-label="Code de l’écran"></output>
-      <p id="lobby-status" role="status"></p>
+      <p id="lobby-status" role="status">Chargement du code…</p>
       <button type="button" id="new-code" hidden>Nouveau code</button>
     </div>
   </main>
@@ -35,6 +36,22 @@
           <div class="caption-identity"><strong id="author-name"></strong><p id="author"></p></div>
         </div>
         <p id="text"></p>
+      </article>
+      <article id="screen-comment" aria-label="Commentaire" hidden>
+        <div class="screen-comment-head">
+          <div class="screen-comment-avatar" aria-hidden="true"><span id="comment-letter">X</span><img id="comment-avatar" alt="" hidden></div>
+          <div class="screen-comment-identity">
+            <strong id="comment-name"></strong>
+            <span id="comment-handle"></span>
+          </div>
+          <time id="comment-time" hidden></time>
+        </div>
+        <p id="comment-text"></p>
+        <div id="comment-stats" hidden>
+          <span data-comment-stat="likeCount">Likes: <b></b></span>
+          <span data-comment-stat="repostCount">Reposts: <b></b></span>
+          <span data-comment-stat="bookmarkCount">Bookmarks: <b></b></span>
+        </div>
       </article>
       <div class="tools">
         <select class="language-select" aria-label="Langue"><option value="en">English</option><option value="fr">Français</option></select>

@@ -18,11 +18,20 @@ const initial = find('#avatar-letter');
 const text = find('#text');
 const audio = find('#screen-audio');
 const fullscreen = find('#fullscreen');
+const screenComment = find('#screen-comment');
+const screenCommentAvatar = find('#comment-avatar');
+const screenCommentLetter = find('#comment-letter');
+const screenCommentName = find('#comment-name');
+const screenCommentHandle = find('#comment-handle');
+const screenCommentTime = find('#comment-time');
+const screenCommentText = find('#comment-text');
+const screenCommentStats = find('#comment-stats');
 let phase = '', playback, received = 0, polling = false, pairing = false;
 let audioAllowed = false, reportedAudio = false, audioRequest = false;
 let playBlocked = false, playAttempt;
 let stream, streamSeen = 0, streamRetry = 0, lastStatusPoll = 0;
 let clipKey, fallbackSource, appliedJump, needsPosition = false, bufferingSince, stalledSince;
+let displayedCommentId = '';
 const SNAPSHOT_TIMEOUT = 8000;
 const BUFFER_LIMIT = 2800;
 
@@ -94,6 +103,37 @@ function waitingMessage(message = '') {
   write(wait, message);
 }
 
+function showScreenComment(value) {
+  if (!value) {
+    displayedCommentId = '';
+    screenComment.hidden = true;
+    return;
+  }
+  if (displayedCommentId === value.id) return;
+  displayedCommentId = value.id;
+  screenComment.hidden = false;
+  raw(screenCommentName, value.name || (value.author ? `@${value.author}` : 'X'));
+  raw(screenCommentHandle, value.name && value.author ? `@${value.author}` : '');
+  raw(screenCommentLetter, (value.name || value.author || 'X').slice(0, 1).toUpperCase());
+  raw(screenCommentText, value.text || '');
+  if ((screenCommentAvatar.getAttribute('src') || '') !== value.avatar) {
+    screenCommentAvatar.hidden = !value.avatar;
+    if (value.avatar) screenCommentAvatar.src = value.avatar;
+    else screenCommentAvatar.removeAttribute('src');
+  }
+  const timestamp = value.date && Date.parse(value.date);
+  screenCommentTime.hidden = !Number.isFinite(timestamp);
+  raw(screenCommentTime, Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString() : '');
+  let visible = false;
+  for (const stat of screenCommentStats.querySelectorAll('[data-comment-stat]')) {
+    const count = value[stat.dataset.commentStat];
+    stat.hidden = !Number.isSafeInteger(count) || count < 0;
+    raw(stat.querySelector('b'), Number.isSafeInteger(count) && count >= 0 ? new Intl.NumberFormat(undefined, { notation: 'compact' }).format(count) : '');
+    visible ||= !stat.hidden;
+  }
+  screenCommentStats.hidden = !visible;
+}
+
 function syncVideo() {
   const media = playback?.media;
   if (!media?.url) return;
@@ -141,6 +181,7 @@ function showPlayback(value) {
     }
     caption.hidden = true;
     subtitle.hidden = true;
+    showScreenComment();
     if (avatar.hasAttribute('src')) avatar.removeAttribute('src');
     avatar.hidden = true;
     clipKey = fallbackSource = bufferingSince = stalledSince = undefined;
@@ -171,6 +212,7 @@ function showPlayback(value) {
     else avatar.removeAttribute('src');
   }
   raw(text, media.text);
+  showScreenComment(media.screenComment);
   syncVideo();
 }
 
@@ -196,7 +238,16 @@ async function start() {
   if (pairing) return;
   pairing = true;
   newCode.disabled = true;
-  try { render(await call('request', {})); }
+  try {
+    const result = await new Promise((resolve, reject) => {
+      if (typeof window.xscrollScreenRequest !== 'function') {
+        call('request', {}).then(resolve, reject);
+        return;
+      }
+      window.xscrollScreenRequest((error, value) => error ? reject(error) : resolve(value));
+    });
+    render(result);
+  }
   catch {
     write(lobbyStatus, 'Impossible de contacter XScroll.');
     newCode.hidden = false;
@@ -290,6 +341,7 @@ window.addEventListener('pageshow', event => {
   }
 });
 pageLanguage();
+window.xscrollScreenModuleReady?.();
 void poll();
 setInterval(() => {
   if (stream && performance.now() - streamSeen > 6200) {

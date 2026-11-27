@@ -26,6 +26,7 @@ const assets = new Map([
   ['/screen', ['screen.html', 'text/html; charset=utf-8']],
   ['/screen/', ['screen.html', 'text/html; charset=utf-8']],
   ['/screen.css', ['screen.css', 'text/css; charset=utf-8']],
+  ['/screen-boot.js', ['screen-boot.js', 'text/javascript; charset=utf-8']],
   ['/screen.js', ['screen.js', 'text/javascript; charset=utf-8']],
   ['/language.mjs', ['language.mjs', 'text/javascript; charset=utf-8']],
   ['/screen-clock.mjs', ['screen-clock.mjs', 'text/javascript; charset=utf-8']],

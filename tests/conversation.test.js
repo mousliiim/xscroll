@@ -106,6 +106,7 @@ test('pausing fullscreen comments preserves the current comment and its remainin
   conversation.setClip('123');
   await Promise.resolve();
   assert.equal(visibleComment?.text, 'Readable comment');
+  assert.equal(conversation.fullscreenReply()?.text, 'Readable comment');
   const duration = Math.min(18000, 6500 + visibleComment.text.length * 25) * 100 / 75;
 
   function advance(milliseconds) {
@@ -126,11 +127,13 @@ test('pausing fullscreen comments preserves the current comment and its remainin
   conversation.toggleFullscreenCommentsPause();
   advance(15000);
   assert.equal(visibleComment?.text, 'Readable comment');
+  assert.equal(conversation.fullscreenReply()?.text, 'Readable comment');
   conversation.toggleFullscreenCommentsPause();
   advance(duration - 2001);
   assert.equal(visibleComment?.text, 'Readable comment');
   advance(2);
   assert.equal(visibleComment, undefined);
+  assert.equal(conversation.fullscreenReply(), undefined);
 });
 
 test('a failed reply request clears loading state and exposes a retry', async () => {

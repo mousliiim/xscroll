@@ -20,6 +20,7 @@ export function createConversation({ client, view, postActions, currentVideo, al
   let overlaySpeed = settingValue('fullscreen-comment-speed', 75, 25, 200);
   let fullscreen = false, overlayPaused = false, overlayTimer, overlayDeadline = 0;
   let overlayRemaining = 0, overlayTask, overlaySpeedSensitive = false, repliesShownBeforePage = 0;
+  let fullscreenReply;
   const shownComments = new Set();
   let openOnFirstClip = automatic;
   view.fullscreenComments(overlayEnabled);
@@ -53,6 +54,7 @@ export function createConversation({ client, view, postActions, currentVideo, al
     overlayTask = undefined;
     overlayRemaining = overlayDeadline = 0;
     overlaySpeedSensitive = false;
+    fullscreenReply = undefined;
     overlayPaused = false;
     repliesShownBeforePage = 0;
     shownComments.clear();
@@ -66,9 +68,11 @@ export function createConversation({ client, view, postActions, currentVideo, al
     for (const reply of thread.items.values()) {
       if (!reply.text.trim() || shownComments.has(reply.id)) continue;
       shownComments.add(reply.id);
+      fullscreenReply = reply;
       view.fullscreenComment(reply);
       const duration = Math.min(18000, 6500 + reply.text.length * 25) * 100 / overlaySpeed;
       scheduleOverlay(() => {
+        fullscreenReply = undefined;
         view.fullscreenComment();
         scheduleOverlay(showNextComment, 320);
       }, duration, true);
@@ -181,6 +185,7 @@ export function createConversation({ client, view, postActions, currentVideo, al
       showNextComment();
     },
     fullscreenComments: () => overlayEnabled,
+    fullscreenReply: () => showingOverlay() ? fullscreenReply : undefined,
     fullscreenCommentSize: () => overlaySize,
     fullscreenCommentTransparency: () => overlayTransparency,
     fullscreenCommentSpeed: () => overlaySpeed,

@@ -101,3 +101,23 @@ test('a display avatar uses the public profile CDN path without parameters', () 
     assert.equal(screenMedia({ url, avatar }).avatar, '');
   }
 });
+
+test('a fullscreen reply is safely included in the external screen video state', () => {
+  const media = screenMedia({
+    url: 'https://video.twimg.com/public.mp4',
+    screenComment: {
+      id: '456', handle: 'alice', name: 'Alice', text: 'Readable reply',
+      date: 'Wed Nov 27 10:24:00 +0000 2026', likeCount: 1234,
+      repostCount: 5, bookmarkCount: 2,
+      avatar: 'https://pbs.twimg.com/profile_images/1/alice.jpg?token=private',
+    },
+  });
+  assert.deepEqual(media.screenComment, {
+    id: '456', author: 'alice', name: 'Alice', text: 'Readable reply',
+    date: 'Wed Nov 27 10:24:00 +0000 2026', likeCount: 1234,
+    repostCount: 5, bookmarkCount: 2,
+    avatar: 'https://pbs.twimg.com/profile_images/1/alice.jpg',
+  });
+  assert.equal(screenMedia({ url: 'https://video.twimg.com/public.mp4',
+    screenComment: { id: 'bad', text: 'ignored' } }).screenComment, null);
+});
