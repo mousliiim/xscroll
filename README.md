@@ -44,11 +44,13 @@ Choose **English** or **Français** in the extension popup or the player setting
 
 ## Use your phone or another screen
 
-1. On the computer, open a terminal in the extracted folder and start the relay with Node.js 22 or newer.
+1. On the computer, open PowerShell on Windows or a terminal on macOS or Linux in the extracted folder. Start the relay with Node.js 22 or newer.
 
    ```sh
    node remote/server.mjs --lan
    ```
+
+   On Windows, approve the administrator prompt if it appears. XScroll configures access for its relay on the local network and prints the phone address once it verifies the connection from the computer.
 
 2. Open XScroll on X. In the Chrome popup, click **Enable phone remote** and allow the local connection.
 3. On a phone on the same network, open the phone address printed by the relay and enter the code shown in Chrome.
@@ -57,13 +59,9 @@ Choose **English** or **Français** in the extension popup or the player setting
 <details>
 <summary>Using Ubuntu in WSL?</summary>
 
-If the phone can’t reach the relay, stop it and add `--configure-lan`. Approve the Windows prompt to set up local forwarding.
+With WSL in NAT mode, the same `--lan` command sets up and checks Windows forwarding automatically. Approve the administrator prompt if XScroll needs to update the rule. In mirrored mode, WSL connects directly to the local network and may require a Hyper-V firewall rule for TCP port `4781`. You can also run the relay from Windows PowerShell. [WSL networking](https://learn.microsoft.com/windows/wsl/networking)
 
-```sh
-node remote/server.mjs --lan --configure-lan
-```
-
-[WSL networking](https://learn.microsoft.com/windows/wsl/networking)
+If the phone still can’t connect, use the latest address printed by the relay and check that both devices are on the same local network. Guest Wi-Fi and managed firewalls can block connections between devices.
 
 </details>
 

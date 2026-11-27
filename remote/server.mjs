@@ -1,12 +1,14 @@
 import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { once } from 'node:events';
 import { existsSync, readFileSync } from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import { isIPv4 } from 'node:net';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { REMOTE_PORT, remoteCommand, remoteStatus } from './protocol.mjs';
-import { configureWslLan, wslLan } from './wsl-lan.mjs';
+import { configureWindowsLan, windowsLan } from './windows-lan.mjs';
 import { normalizeLanguage, translate } from './language.mjs';
 import { createScreenSessions } from './screen-sessions.mjs';
 
@@ -76,6 +78,7 @@ function readJSON(request, limit = 3000) {
 
 export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = hostAddresses } = {}) {
   let code = fixedCode || String(randomInt(100000, 1000000));
+  const instance = randomBytes(12).toString('hex');
   let lastPoll = 0, state = remoteStatus(), waiting, commands = [];
   const sessions = new Map();
   const failures = new Map();
@@ -251,7 +254,9 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
       return reply(response, 200, { connected: screen.connected() });
     }
     if (pathname === '/api/status' && request.method === 'GET') {
-      return reply(response, 200, { paired: Boolean(paired), active, ...(paired && { state: phoneState() }) });
+      return reply(response, 200, { paired: Boolean(paired), active, ...(paired && { state: phoneState() }) }, {
+        'X-XScroll-Relay': instance,
+      });
     }
     if (pathname === '/api/pair' && request.method === 'POST') {
       const ip = request.socket.remoteAddress;
@@ -300,43 +305,69 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
   server.requestTimeout = 8000;
   server.headersTimeout = 8000;
   server.on('close', () => disconnect(false));
-  return { server, info: () => ({ code, urls: urls(server.address().port) }) };
+  return { server, instance, info: () => ({ code, urls: urls(server.address().port) }) };
 }
 
 const langFlag = process.argv.indexOf('--lang');
 const cliLanguage = normalizeLanguage((langFlag >= 0 && process.argv[langFlag + 1]) || Intl.DateTimeFormat().resolvedOptions().locale);
 const cli = message => translate(message, undefined, cliLanguage);
 
-function start() {
-  const lan = process.argv.includes('--lan');
-  const route = lan ? wslLan(localIPv4) : null;
-  if (process.argv.includes('--configure-lan')) {
-    if (!route) throw new Error('--configure-lan est réservé à WSL en mode NAT avec --lan.');
-    configureWslLan(route, REMOTE_PORT);
+function probe(url, instance) {
+  return new Promise(resolve => {
+    const request = http.get(new URL('api/status', url), { agent: false, signal: AbortSignal.timeout(1200) }, response => {
+      response.resume();
+      resolve(response.statusCode === 200 && response.headers['x-xscroll-relay'] === instance);
+    });
+    request.once('error', () => resolve(false));
+  });
+}
+
+async function readyOnLan(remote, route, force) {
+  const { urls } = remote.info();
+  if (!urls.length) throw new Error('Aucune adresse IPv4 locale détectée. Connecte l’ordinateur au réseau et relance XScroll.');
+  if (route) {
+    const [url] = urls;
+    const available = await probe(url, remote.instance);
+    if (available && route.firewallReady && !force) return urls;
+    console.log(cli('Configuration de l’accès réseau Windows pour XScroll…'));
+    await configureWindowsLan(route, REMOTE_PORT, { refreshProxy: !available });
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (await probe(url, remote.instance)) return urls;
+      await delay(250);
+    }
+    throw new Error('Le relais ne répond pas sur l’adresse réseau Windows. Vérifie le pare-feu et relance XScroll.');
   }
+  const reachable = await Promise.all(urls.map(url => probe(url, remote.instance)));
+  const verified = urls.filter((url, index) => reachable[index]);
+  if (!verified.length) throw new Error('Le relais ne répond sur aucune adresse du réseau local.');
+  return verified;
+}
+
+async function start() {
+  const lan = process.argv.includes('--lan');
+  const force = process.argv.includes('--configure-lan');
+  if (force && !lan) throw new Error('Utilise --configure-lan avec --lan.');
+  const route = lan ? windowsLan(localIPv4, REMOTE_PORT) : null;
   const remote = createRemoteServer({
     lan,
     allowedAddresses: route ? () => route.windows ? [route.windows] : [] : hostAddresses,
   });
-  remote.server.on('error', error => { console.error(`XScroll Remote · ${error.message}`); process.exitCode = 1; });
-  remote.server.listen(REMOTE_PORT, lan ? '0.0.0.0' : '127.0.0.1', () => {
-    const { urls, code } = remote.info();
-    console.log('XScroll Remote');
-    for (const url of urls) {
+  await once(remote.server.listen(REMOTE_PORT, lan ? '0.0.0.0' : '127.0.0.1'), 'listening');
+  const { code } = remote.info();
+  console.log('XScroll Remote');
+  console.log(`${cli('Computer')}  http://127.0.0.1:${REMOTE_PORT}/`);
+  console.log(`Code  ${code}`);
+  if (!lan) return console.log(cli('Add --lan to allow phones on your local network.'));
+  try {
+    for (const url of await readyOnLan(remote, route, force)) {
       console.log(`${cli('Phone')}  ${url}`);
       console.log(`${cli('Screen')}  ${url}screen`);
     }
-    console.log(`${cli('Computer')}  http://127.0.0.1:${REMOTE_PORT}/`);
-    console.log(`Code  ${code}`);
-    if (!lan) console.log(cli('Add --lan to allow phones on your local network.'));
-    if (route?.windows && !process.argv.includes('--configure-lan')) {
-      console.log(cli('WSL (NAT) · If the phone cannot connect, restart with --lan --configure-lan.'));
-    }
-    if (route && !route.windows) console.log(cli('WSL (NAT) · No Windows Ethernet or Wi-Fi address found.'));
-  });
+  } catch (error) {
+    console.error(`${cli('Accès réseau local indisponible.')} ${cli(error.message)}`);
+  }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { start(); }
-  catch (error) { console.error(`XScroll Remote · ${cli(error.message)}`); process.exitCode = 1; }
+  start().catch(error => { console.error(`XScroll Remote · ${cli(error.message)}`); process.exitCode = 1; });
 }

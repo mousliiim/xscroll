@@ -44,11 +44,13 @@ Choisis **Français** ou **English** dans le popup de l’extension ou les régl
 
 ## Utiliser le téléphone ou un autre écran
 
-1. Sur l’ordinateur, ouvre un terminal dans le dossier extrait et lance le relais avec Node.js 22 ou plus récent.
+1. Sur l’ordinateur, ouvre PowerShell sous Windows ou un terminal sous macOS ou Linux dans le dossier extrait. Lance le relais avec Node.js 22 ou plus récent.
 
    ```sh
    node remote/server.mjs --lan --lang fr
    ```
+
+   Sous Windows, accepte la demande administrateur si elle apparaît. XScroll configure l’accès local à son relais et affiche l’adresse du téléphone après l’avoir testée depuis l’ordinateur.
 
 2. Ouvre XScroll sur X. Dans le popup Chrome, clique sur **Activer la télécommande** et autorise la connexion locale.
 3. Sur un téléphone connecté au même réseau, ouvre l’adresse de la télécommande affichée par le relais et saisis le code affiché dans Chrome.
@@ -57,13 +59,9 @@ Choisis **Français** ou **English** dans le popup de l’extension ou les régl
 <details>
 <summary>Tu utilises Ubuntu dans WSL ?</summary>
 
-Si le téléphone ne joint pas le relais, arrête-le puis relance-le en ajoutant `--configure-lan`. Accepte la demande Windows pour activer la redirection locale.
+En mode NAT, la même commande `--lan` configure et vérifie automatiquement la redirection Windows. Accepte la demande administrateur si XScroll doit actualiser la règle. En mode miroir, WSL rejoint directement le réseau local et peut nécessiter une règle de pare-feu Hyper-V pour le port TCP `4781`. Tu peux aussi lancer le relais dans PowerShell sous Windows. [Réseau WSL](https://learn.microsoft.com/windows/wsl/networking)
 
-```sh
-node remote/server.mjs --lan --configure-lan
-```
-
-[Réseau WSL](https://learn.microsoft.com/windows/wsl/networking)
+Si le téléphone ne se connecte toujours pas, utilise la dernière adresse affichée par le relais et vérifie que les deux appareils sont sur le même réseau local. Le Wi-Fi invité et certains pare-feu d’entreprise peuvent bloquer les connexions entre appareils.
 
 </details>
 
