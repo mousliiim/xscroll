@@ -1,6 +1,7 @@
 import { refreshLanguage } from '../../remote/language.mjs';
 import { extensionLanguage, saveLanguage } from './language.js';
 import { isSearchHelper, listenForNativeResults, openNativeSearch } from './native-search.js';
+import { bookmarkFromPlayer, isBookmarkHelper, listenForBookmarkJob } from './native-bookmark.js';
 import { screenMediaURL } from '../../remote/protocol.mjs';
 import { createPlayerView } from '../ui/player.js';
 import { createMediaDeck } from '../player/media.js';
@@ -23,7 +24,7 @@ let theme = readSetting('theme', 'dark');
 if (!THEMES.has(theme)) theme = 'system';
 let app;
 
-const postActions = createPostActions(client, id => app?.redrawActions(id));
+const postActions = createPostActions(client, id => app?.redrawActions(id), bookmarkFromPlayer);
 const feed = createFeed({
   client, openSearch: openNativeSearch,
   onClips: () => app?.refresh(),
@@ -64,9 +65,12 @@ function mount() {
     language: value => { void saveLanguage(value); },
     float: () => windowController.toggle(),
     fullscreen: () => windowController.fullscreen(),
+    'fullscreen-comments': () => conversation.toggleFullscreenComments(),
     resize: name => windowController.resize(name),
     fit: value => windowController.fit(value),
     framing: () => windowController.toggleFit(),
+    'auto-next': () => deck.toggleAutoNext(),
+    captions: () => deck.toggleCaptions(),
     split: (value, commit) => windowController.split(value, commit),
     replies: () => conversation.setOpen(!conversation.isOpen()),
     'hide-replies': () => conversation.setOpen(false),
@@ -90,6 +94,7 @@ function mount() {
       feed.replenish(deck.index());
     },
     onPlayback: () => conversation.syncScroll(),
+    onEnd: () => feed.replenish(deck.index(), true),
     onSync: () => remote.sync(),
   });
   const conversation = createConversation({
@@ -97,6 +102,7 @@ function mount() {
   });
   const windowController = createPlayerWindow({
     view, deck, handleKeys, isOpen: () => open, onMove: () => { conversation.syncScroll(); remote.rebind(); },
+    onFullscreen: conversation.setFullscreen,
   });
   const remoteActions = {
     previous: () => deck.step(-1),
@@ -112,6 +118,13 @@ function mount() {
     'replies-auto': () => conversation.toggleAuto(),
     'replies-up': () => conversation.step(-1),
     'replies-down': () => conversation.step(1),
+    fullscreen: () => { void windowController.remoteFullscreen(); },
+    'fullscreen-comments': () => conversation.toggleFullscreenComments(),
+    fit: () => windowController.fit('contain'),
+    fill: () => windowController.fit('fill'),
+    'auto-next': () => deck.toggleAutoNext(),
+    captions: () => deck.toggleCaptions(),
+    'phone-replies-more': () => { void conversation.phoneMore(); },
   };
   function clearPreviewLease() {
     if (previewLease) previewLease.owner.clearTimeout(previewLease.id);
@@ -151,15 +164,20 @@ function mount() {
     const url = screenConnected ? displayURL() : '';
     const clip = deck.clip();
     const engagement = postActions.read(clip?.tweetId);
+    const captions = deck.captions();
     return {
       ready: open, playable: Boolean(video), paused: video?.paused, muted: deck.isMuted(), volume: video?.volume,
       rate: video?.playbackRate ?? deck.rate(), rateTarget: deck.rate(), replies: conversation.isOpen(), autoReplies: conversation.isAuto(), discovery: discoveryStatus(),
+      fit: view.host.dataset.fit, fullscreen: windowController.fullscreenActive(), fullscreenFailed: windowController.fullscreenFailed(),
+      fullscreenComments: conversation.fullscreenComments(),
+      autoNext: deck.autoNext(), captions: captions.enabled, captionsAvailable: captions.available, comments: conversation.phoneComments(),
       post: engagement ? { id: clip.tweetId, author: clip.user, ...engagement.stats, pending: [...engagement.pending] } : null,
       postResults: [...postResults.values()],
       media: url ? {
         url, fallback: displayFallback(clip, url), key: `${clip.tweetId}:${clip.mediaIndex ?? 0}`, jump: deck.seekVersion(),
         time: video.currentTime, duration: video.duration, fit: view.host.dataset.fit,
         text: clip.text, author: clip.user, name: clip.name, avatar: clip.avatar, stalled: video.readyState < 3 || video.seeking,
+        subtitle: captions.cue, loop: video.loop,
       } : screenConnected && video ? { unavailable: true } : null,
     };
   }, command => {
@@ -169,6 +187,8 @@ function mount() {
       clearPreviewLease();
       deck.setRate(command.rate);
     } else if (command.command === 'speed-preview') previewFromPhone(command.rate);
+    else if (command.command === 'volume') deck.setVolume(command.volume);
+    else if (command.command === 'phone-replies') conversation.setPhoneOpen(command.open);
     else if (command.command === 'post-action') void applyPhonePostAction(command);
     else start(undefined, undefined, command);
   }, routeDisplay);
@@ -188,7 +208,8 @@ function mount() {
     r: () => conversation.setOpen(!conversation.isOpen(), false), a: () => conversation.toggleAuto(),
     t: () => setTheme(effectiveTheme() === 'light' ? 'dark' : 'light'), '?': view.help,
     Escape: () => {
-      if (conversation.isOpen()) conversation.setOpen(false);
+      if (windowController.presenting()) void windowController.remoteFullscreen(false);
+      else if (conversation.isOpen()) conversation.setOpen(false);
       else if (windowController.active()) windowController.closeMini();
       else close();
     },
@@ -302,10 +323,14 @@ function mount() {
   function close() {
     if (!open) return;
     open = false;
+    conversation.setFullscreen(false);
+    view.full(false);
+    if (windowController.presenting()) void windowController.remoteFullscreen(false);
     remote.stop();
     clearPreviewLease();
     view.dismissMenu();
     conversation.reset();
+    conversation.setPhoneOpen(false);
     feed.stop();
     view.host.hidden = true;
     deck.reset();
@@ -343,9 +368,12 @@ async function initializePlayer() {
   await extensionLanguage(locale => app?.language(locale));
   app = mount();
 }
-if (isSearchHelper) listenForNativeResults();
-else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializePlayer, { once: true });
-else void initializePlayer();
+listenForBookmarkJob();
+if (!isBookmarkHelper) {
+  if (isSearchHelper) listenForNativeResults();
+  else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializePlayer, { once: true });
+  else void initializePlayer();
+}
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id || !message) return;

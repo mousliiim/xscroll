@@ -19,12 +19,17 @@
     </button>
   </main>
   <section class="remote" id="remote-panel" hidden>
-    <button type="button" id="remote-toggle" class="secondary">Phone remote</button>
-    <p id="remote-info" role="status" hidden></p>
-    <ul id="remote-urls" hidden></ul>
+    <h2>Phone remote</h2>
+    <div class="remote-details" id="remote-details" hidden>
+      <p id="remote-info" role="status" hidden></p>
+      <ul id="remote-urls" hidden></ul>
+    </div>
+    <button type="button" id="remote-toggle" class="secondary"><span>Enable phone remote</span>
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 15l6-6m-8 8H6a4 4 0 0 1 0-8h4m4 6h4a4 4 0 0 0 0-8h-1"/></svg>
+    </button>
   </section>
   <footer>
-    <span><kbd>?</kbd> Keyboard shortcuts in the player</span>
+    <span><kbd>?</kbd><span>Player shortcuts</span></span>
     <select class="language-select" aria-label="Language"><option value="en">English</option><option value="fr">Français</option></select>
   </footer>
   <script src="popup.js"></script>

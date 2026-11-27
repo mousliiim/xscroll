@@ -6,6 +6,7 @@ import { acceptClips, extractVideos, postStats } from '../src/x/model.js';
 import { operationFromURL } from '../src/x/protocol.js';
 import { extractReplies } from '../src/x/replies.js';
 import { pickVariant } from '../src/player/media.js';
+import { captionCues } from '../src/player/captions.js';
 
 const video = {
   rest_id: '1',
@@ -36,7 +37,7 @@ test('keeps replies in the selected branch and carries the original timestamp an
   const date = '2026-11-27T10:24:00Z';
   const item = (id, parent) => ({ item: { itemContent: { tweet_results: { result: {
     rest_id: id, core: { user_results: { result: { core: { name: 'A', screen_name: 'alice' }, legacy: { description: 'Profile' } } } },
-    legacy: { conversation_id_str: '1', in_reply_to_status_id_str: parent, created_at: date, full_text: 'Reply' },
+    legacy: { conversation_id_str: '1', in_reply_to_status_id_str: parent, created_at: date, full_text: 'Reply', favorite_count: 7 },
   } } } } });
   const payload = { data: { threaded_conversation_with_injections_v2: { instructions: [
     { entries: [
@@ -47,6 +48,7 @@ test('keeps replies in the selected branch and carries the original timestamp an
   const result = extractReplies(payload, '2');
   assert.deepEqual(result.replies.map(reply => reply.id), ['3', '4']);
   assert.equal(result.replies[0].date, date);
+  assert.equal(result.replies[0].likeCount, 7);
   assert.equal(result.replies[0].bio, 'Profile');
   assert.equal(result.cursor, 'more');
 });
@@ -138,4 +140,16 @@ test('adds and removes a bookmark through the current X client and requires an a
   rejectAdd = true;
   await assert.rejects(actions.toggle('123', 'bookmark', true), /did not confirm/);
   assert.equal(actions.read('123').stats.bookmark, false);
+});
+
+test('reads the current X conversation format and extracts playable WebVTT cues', () => {
+  const response = { data: { threaded_conversation_with_injections_v2: { instructions: [{ entries: [
+    { content: { items: [{ item: { content: { tweet_results: { result: {
+      rest_id: '345', reply_to_results: { rest_id: '123' }, details: { full_text: 'Reply from X' },
+    } } } } }] } },
+    { content: { content: { cursor_type: 'Bottom', value: 'next' } } },
+  ] }] } } };
+  assert.equal(extractReplies(response, '123').replies[0].text, 'Reply from X');
+  assert.equal(extractReplies(response, '123').cursor, 'next');
+  assert.deepEqual(captionCues('WEBVTT\n\n00:00.500 --> 00:02.000\nHello\n'), [[.5, 2, 'Hello']]);
 });

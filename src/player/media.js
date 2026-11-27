@@ -1,5 +1,6 @@
 import { createRateRamp, normalizeRate } from './rate.js';
 import { readSetting, saveSetting } from './settings.js';
+import { captionFile, embeddedCaptions, loadCaptionTrack } from './captions.js';
 
 const RADIUS = 2;
 const STEPS = [270, 360, 480, 540, 720, 1080, 1440, 2160];
@@ -16,7 +17,7 @@ export function pickVariant(clip, quality, cap = 720) {
   return variants.find(value => !(label(value) > ceiling)) || variants.at(-1);
 }
 
-export function createMediaDeck(view, { onSlide, onPlayback, onSync = () => {} }) {
+export function createMediaDeck(view, { onSlide, onPlayback, onEnd = () => {}, onSync = () => {} }) {
   const { track } = view;
   const before = track.ownerDocument.createElement('div');
   const after = track.ownerDocument.createElement('div');
@@ -31,6 +32,8 @@ export function createMediaDeck(view, { onSlide, onPlayback, onSync = () => {} }
   const pick = item => pickVariant(item, quality, autoCap);
   let clips = [], index = -1;
   let quality = readSetting('quality', 'auto');
+  let autoNext = readSetting('auto-next', 'false') === 'true', waitingForNext;
+  let showCaptions = readSetting('captions', 'false') === 'true';
   let rate = 1, previewRate, muted = false, volume = 1, screenAudio = false;
   const isMuted = () => screenAudio ? muted : video()?.muted ?? muted;
   const targetRate = () => previewRate ?? rate;
@@ -120,10 +123,15 @@ export function createMediaDeck(view, { onSlide, onPlayback, onSync = () => {} }
     frame.className = 'frame';
     frame.dataset.index = String(position);
     const element = doc.createElement('video');
-    Object.assign(element, { loop: true, playsInline: true, preload: 'auto', poster: item.poster || '', preservesPitch: true });
+    Object.assign(element, { playsInline: true, preload: 'auto', poster: item.poster || '', preservesPitch: true });
     frame.append(element);
     const remembered = resume.get(item.key);
     const slide = { clip: item, frame, video: element, startedAt: performance.now(), loop: remembered?.loop };
+    element.loop = !autoNext || slide.loop?.end !== undefined;
+    element.textTracks.addEventListener('addtrack', () => { if (active() === slide) updateCaptions(slide); });
+    element.addEventListener('ended', () => {
+      if (element === video() && autoNext && slide.loop?.end === undefined) advanceOnEnd(element);
+    });
     if (remembered?.time) {
       element.addEventListener('loadedmetadata', () => {
         if (element.currentTime === 0) element.currentTime = Math.min(remembered.time, Math.max(0, element.duration - 0.1));
@@ -214,6 +222,7 @@ export function createMediaDeck(view, { onSlide, onPlayback, onSync = () => {} }
       smoothClips = 0;
     }
     index = position;
+    waitingForNext = undefined;
     previewRate = undefined;
     if (prior) {
       prior.frame.classList.remove('is-active');
@@ -224,6 +233,7 @@ export function createMediaDeck(view, { onSlide, onPlayback, onSync = () => {} }
     const slide = active();
     const element = slide.video;
     slide.frame.classList.add('is-active');
+    updateCaptions(slide);
     element.muted = muted || screenAudio;
     element.volume = volume;
     rateRamp.snap(element, rate);
@@ -238,8 +248,34 @@ export function createMediaDeck(view, { onSlide, onPlayback, onSync = () => {} }
     play(element);
   }
 
+  function updateCaptions(slide) {
+    const element = slide?.video;
+    const track = element && (slide.captionTrack || embeddedCaptions(element));
+    if (track) {
+      track.mode = showCaptions ? 'showing' : 'disabled';
+      if (slide.captionTrack !== track) track.addEventListener('cuechange', onSync);
+      slide.captionTrack = track;
+    }
+    view.captions(Boolean(track || slide?.captionSource), Boolean(track && showCaptions));
+    if (!slide || track || slide.captionJob) return;
+    if (slide.captionSource === undefined) {
+      slide.captionJob = captionFile(slide.clip, element.ownerDocument).catch(() => '').then(url => {
+        slide.captionSource = url;
+        slide.captionJob = undefined;
+        if (active() === slide) { updateCaptions(slide); onSync(); }
+      });
+    } else if (slide.captionSource && showCaptions) {
+      slide.captionJob = loadCaptionTrack(element, slide.captionSource).catch(() => undefined).then(track => {
+        if (!track) slide.captionSource = '';
+        slide.captionJob = undefined;
+        if (active() === slide) { updateCaptions(slide); onSync(); }
+      });
+    }
+  }
+
   function togglePlay() {
     const element = video();
+    waitingForNext = undefined;
     if (element?.paused) play(element);
     else element?.pause();
   }
@@ -251,22 +287,50 @@ export function createMediaDeck(view, { onSlide, onPlayback, onSync = () => {} }
     renderMedia();
   }
 
+  function step(direction) {
+    const next = index + direction;
+    if (!clips[next]) return false;
+    focus(next);
+    jump(next);
+    return true;
+  }
+
+  function advanceOnEnd(element) {
+    if (step(1)) return;
+    waitingForNext = element;
+    onEnd();
+  }
+
+  function toggleAutoNext() {
+    autoNext = !autoNext;
+    saveSetting('auto-next', autoNext);
+    view.autoNext(autoNext);
+    for (const slide of mounted.values()) slide.video.loop = !autoNext || slide.loop?.end !== undefined;
+    if (!autoNext) waitingForNext = undefined;
+    else if (video()?.ended) advanceOnEnd(video());
+    onSync();
+  }
+
+  view.autoNext(autoNext);
+
   return {
     clip, video, seekVersion: () => seekVersion,
     index: () => Math.max(0, index),
     update(items) {
       clips = items;
       if (index < 0 && clips.length) focus(0);
-      else syncFrames();
+      else if (!(autoNext && waitingForNext?.ended && waitingForNext === video() && step(1))) syncFrames();
     },
     reset() {
       rateRamp.cancel();
       index = -1;
+      waitingForNext = undefined;
       for (const [position, slide] of mounted) release(position, slide);
       resume.clear();
       clips = [];
       before.style.height = after.style.height = '0px';
       view.post();
+      view.captions(false, false);
       view.loop(undefined, 0);
       view.navigate(false, false);
       rate = 1;
@@ -280,11 +344,18 @@ export function createMediaDeck(view, { onSlide, onPlayback, onSync = () => {} }
     onScroll() {
       if (track.clientHeight && index >= 0) focus(Math.round(track.scrollTop / track.clientHeight));
     },
-    step(direction) {
-      const next = index + direction;
-      if (!clips[next]) return;
-      focus(next);
-      jump(next);
+    step, toggleAutoNext, autoNext: () => autoNext,
+    captions() {
+      const slide = active();
+      return { available: Boolean(slide?.captionTrack || slide?.captionSource), enabled: showCaptions,
+        cue: showCaptions ? Array.from(slide?.captionTrack?.activeCues || [], cue => cue.getCueAsHTML?.().textContent ?? cue.text ?? '').join('\n') : '' };
+    },
+    toggleCaptions() {
+      if (!active()?.captionTrack && !active()?.captionSource) return;
+      showCaptions = !showCaptions;
+      saveSetting('captions', showCaptions);
+      updateCaptions(active());
+      onSync();
     },
     togglePlay, seek, setQuality,
     scrub: change => seek((video()?.currentTime || 0) + change),
@@ -346,6 +417,7 @@ export function createMediaDeck(view, { onSlide, onPlayback, onSync = () => {} }
         element.currentTime = slide.loop.start;
         watchLoop(slide);
       }
+      element.loop = !autoNext || slide.loop?.end !== undefined;
       view.loop(slide.loop, element.duration);
     },
     move(moveRoot) {

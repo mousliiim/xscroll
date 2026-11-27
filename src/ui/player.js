@@ -31,6 +31,15 @@ export function createPlayerView(actions) {
           <div class="track" aria-label="Video feed">
             <div class="empty">${icon('reels')}<span role="status">Looking for unseen videos…</span><button type="button" class="button" data-action="retry" hidden>Find more</button></div>
           </div>
+          <aside class="fullscreen-comment" aria-label="On-screen comments" hidden>
+            <header class="fullscreen-comment-head">
+              <div class="fullscreen-comment-avatar"><span></span><img alt="" hidden></div>
+              <div class="fullscreen-comment-identity"><strong></strong><span class="fullscreen-comment-handle"></span></div>
+              <time></time>
+            </header>
+            <p></p>
+            <div class="fullscreen-comment-likes">${icon('like')}<span></span></div>
+          </aside>
           <div class="controls" hidden>
             <div class="seekbar">
               <input class="seek" type="range" min="0" max="0" step="0.1" value="0" aria-label="Seek video" disabled>
@@ -46,6 +55,8 @@ export function createPlayerView(actions) {
                 ${button('down', 'Next video (↓)')}
               </div>
               ${button('framing', 'Fill video frame (V)', 'Fit')}
+              ${button('captions', 'Subtitles')}
+              ${button('fullscreen-comments', 'Show on-screen comments', 'On-screen comments')}
               ${button('fullscreen', 'Fullscreen')}
             </div>
           </div>
@@ -93,6 +104,7 @@ export function createPlayerView(actions) {
         ${menuButton('quality', 'Video quality', `${icon('quality')}<span>Video quality</span><small class="quality-label">Auto</small>`)}
         ${button('download', 'Download video', 'Download video')}
         ${menuButton('size', 'Mini player size and framing', `${icon('size')}<span>Mini player size</span>`)}
+        <button type="button" class="choice" data-action="auto-next" aria-pressed="false">${icon('auto')}<span>Play next video automatically</span>${icon('check')}</button>
         <p class="flyout-heading flyout-section">Appearance</p>
         ${choice('theme', 'system', 'System', 'system')}
         ${choice('theme', 'light', 'Light', 'sun')}
@@ -137,6 +149,21 @@ export function createPlayerView(actions) {
   const thread = get('.thread');
   const answersButton = control('replies');
   const notice = get('.notice');
+  const fullscreenComment = get('.fullscreen-comment');
+  const fullscreenCommentImage = get('.fullscreen-comment-avatar img');
+  const fullscreenCommentInitial = get('.fullscreen-comment-avatar span');
+  const fullscreenCommentName = get('.fullscreen-comment-identity strong');
+  const fullscreenCommentHandle = get('.fullscreen-comment-handle');
+  const fullscreenCommentTime = get('.fullscreen-comment time');
+  const fullscreenCommentText = get('.fullscreen-comment > p');
+  const fullscreenCommentLikes = get('.fullscreen-comment-likes');
+  const fullscreenCommentLikeCount = get('.fullscreen-comment-likes span');
+  const fullscreenCommentButton = control('fullscreen-comments');
+  fullscreenCommentButton.hidden = true;
+  fullscreenCommentImage.addEventListener('error', () => {
+    fullscreenCommentImage.hidden = true;
+    fullscreenCommentImage.removeAttribute('src');
+  });
   const shell = get('.shell');
   const speedControls = createSpeedControls(shadow, actions.speed, actions.speedPreview);
   const menuTrigger = name => get(`[data-menu="${name}"]`);
@@ -259,6 +286,11 @@ export function createPlayerView(actions) {
       speedControls.setTarget(rate);
     },
     actualSpeed: speedControls.setActual,
+    autoNext(enabled) { control('auto-next').setAttribute('aria-pressed', String(enabled)); },
+    captions(available, enabled) {
+      control('captions').hidden = !available;
+      control('captions').setAttribute('aria-pressed', String(enabled));
+    },
     loop(loop, duration) {
       const values = [loop?.start, loop?.end];
       for (const [index, key] of ['loop-start', 'loop-end'].entries()) {
@@ -342,7 +374,41 @@ export function createPlayerView(actions) {
       text(control('float').querySelector('span'), active ? 'Return to tab' : 'Mini player');
     },
     full(active) {
+      fullscreenCommentButton.hidden = !active;
       setControl('fullscreen', active ? 'shrink' : 'fullscreen', active ? 'Exit fullscreen' : 'Fullscreen');
+    },
+    fullscreenComments(enabled) {
+      fullscreenCommentButton.setAttribute('aria-pressed', String(enabled));
+      setControl('fullscreen-comments', 'fullscreen-comments', enabled ? 'Hide on-screen comments' : 'Show on-screen comments');
+    },
+    fullscreenComment(reply) {
+      fullscreenComment.hidden = !reply;
+      if (!reply) return;
+      fullscreenCommentName.textContent = reply.name || (reply.handle ? '@' + reply.handle : translate('X user'));
+      fullscreenCommentHandle.textContent = reply.name && reply.handle ? `@${reply.handle}` : '';
+      fullscreenCommentInitial.textContent = (reply.name || reply.handle || 'X').slice(0, 1).toUpperCase();
+      fullscreenCommentImage.hidden = !reply.avatar;
+      if (reply.avatar && fullscreenCommentImage.src !== reply.avatar) fullscreenCommentImage.src = reply.avatar;
+      else if (!reply.avatar) fullscreenCommentImage.removeAttribute('src');
+      fullscreenCommentText.textContent = reply.text || '';
+      const timestamp = reply.date && Date.parse(reply.date);
+      fullscreenCommentTime.hidden = !Number.isFinite(timestamp);
+      if (Number.isFinite(timestamp)) {
+        const date = new Date(timestamp);
+        fullscreenCommentTime.dateTime = date.toISOString();
+        fullscreenCommentTime.textContent = new Intl.DateTimeFormat(language(), {
+          dateStyle: 'medium', timeStyle: 'short',
+        }).format(date);
+      } else {
+        fullscreenCommentTime.removeAttribute('datetime');
+        fullscreenCommentTime.textContent = '';
+      }
+      fullscreenCommentLikes.hidden = !Number.isSafeInteger(reply.likeCount);
+      fullscreenCommentLikeCount.textContent = Number.isSafeInteger(reply.likeCount) ? countLabel(reply.likeCount) : '';
+    },
+    presentation(enabled) {
+      host.toggleAttribute('data-presentation', enabled);
+      this.full(enabled);
     },
     navigate(prev, next) {
       control('up').disabled = !prev;

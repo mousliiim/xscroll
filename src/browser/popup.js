@@ -6,13 +6,15 @@ const remotePanel = document.querySelector('#remote-panel');
 const remoteToggle = document.querySelector('#remote-toggle');
 const remoteInfo = document.querySelector('#remote-info');
 const remoteUrls = document.querySelector('#remote-urls');
+const remoteDetails = document.querySelector('#remote-details');
 let remoteEnabled = false;
 let remoteTab;
 const remoteRequest = (type, tabId) => chrome.runtime.sendMessage({ channel: 'xscroll.remote.setup', type, tabId });
 
 function renderRemote(info) {
   remoteEnabled = Boolean(info?.enabled);
-  text(remoteToggle, remoteEnabled ? 'Disconnect phone remote' : 'Enable phone remote');
+  text(remoteToggle.querySelector('span'), remoteEnabled ? 'Disconnect phone remote' : 'Enable phone remote');
+  remotePanel.toggleAttribute('data-connected', Boolean(remoteEnabled && info?.code));
   remoteInfo.hidden = !info?.code && !info?.offline;
   text(remoteInfo, info?.code ? 'Pairing code: {code}' :
     info?.offline ? 'Start the local server with npm run remote -- --lan, then connect.' : '', { code: info?.code });
@@ -29,6 +31,7 @@ function renderRemote(info) {
     remoteUrls.append(item);
   }
   remoteUrls.hidden = !remoteUrls.childElementCount;
+  remoteDetails.hidden = remoteInfo.hidden && remoteUrls.hidden;
 }
 
 remoteToggle.addEventListener('click', async () => {

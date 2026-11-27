@@ -29,6 +29,7 @@ import bookmarkIcon from 'lucide-static/icons/bookmark.svg';
 import shareIcon from 'lucide-static/icons/link-2.svg';
 import turtleIcon from 'lucide-static/icons/turtle.svg';
 import rabbitIcon from 'lucide-static/icons/rabbit.svg';
+import captionsIcon from 'lucide-static/icons/closed-caption.svg';
 
 const icons = {
   reels: reelsIcon,
@@ -43,6 +44,7 @@ const icons = {
   fullscreen: fullscreenIcon,
   shrink: shrinkIcon,
   replies: repliesIcon,
+  'fullscreen-comments': repliesIcon,
   external: externalIcon,
   quality: qualityIcon,
   appearance: appearanceIcon,
@@ -63,5 +65,6 @@ const icons = {
   share: shareIcon,
   turtle: turtleIcon,
   rabbit: rabbitIcon,
+  captions: captionsIcon,
 };
 export const icon = name => icons[name].slice(icons[name].indexOf('<svg')).replace('<svg', '<svg aria-hidden="true" focusable="false"');

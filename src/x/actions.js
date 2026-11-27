@@ -14,20 +14,22 @@ export function actionRequest(kind, enabled, id) {
   return { name, variables };
 }
 
-function nativePost(id) {
+export function nativePost(id) {
   for (const article of document.querySelectorAll('article')) {
-    const href = article.querySelector('a[href*="/status/"] time')?.closest('a')?.pathname;
-    if (href?.match(/\/status\/(\d+)/)?.[1] === id) return article;
+    const anchors = article.querySelectorAll('a[href*="/status/"]:is(:has(time), [data-base-ui-tooltip-trigger], [aria-current="page"])');
+    const permalink = [...anchors].find(anchor => anchor.closest('article') === article && /^\/\w+\/status\/\d+\/?$/.test(anchor.pathname));
+    if (permalink?.pathname.match(/\/status\/(\d+)/)?.[1] === id) return article;
   }
   return null;
 }
 
-function nativeButton(article, kind, enabled) {
+export function nativeButton(article, kind, enabled) {
   const legacy = article?.querySelector(`[data-testid="${ACTIONS[kind].native[Number(enabled)]}"]`);
-  return legacy || (kind === 'bookmark' && article?.querySelector(`[data-engagement-action="bookmark"] button[aria-pressed="${enabled}"]`));
+  const button = legacy || (kind === 'bookmark' && article?.querySelector(`[data-engagement-action="bookmark"] button[aria-pressed="${enabled}"]`));
+  return button?.closest('article') === article ? button : null;
 }
 
-function waitForDOM(read, timeout) {
+export function waitForDOM(read, timeout) {
   return new Promise(resolve => {
     const value = read();
     if (value) { resolve(value); return; }
@@ -41,7 +43,7 @@ function waitForDOM(read, timeout) {
       observer.disconnect();
       resolve(result);
     }
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-testid', 'aria-pressed'] });
+    observer.observe(document.body || document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-testid', 'aria-pressed', 'disabled'] });
     timer = setTimeout(() => finish(null), timeout);
   });
 }
@@ -62,7 +64,7 @@ async function nativeToggle(id, kind, enabled) {
   return Boolean(await waitForDOM(() => nativeButton(nativePost(id), kind, enabled), 2500));
 }
 
-export function createPostActions(client, notify) {
+export function createPostActions(client, notify, nativeBookmark) {
   const posts = new Map();
 
   function record(id) {
@@ -104,7 +106,8 @@ export function createPostActions(client, notify) {
       item.pending.add(kind);
       notify(id);
       try {
-        if (item.stats[kind] === undefined) {
+        const saved = kind === 'bookmark' && nativeBookmark ? await nativeBookmark(id, desired) : null;
+        if (!saved && item.stats[kind] === undefined) {
           const article = nativePost(id);
           if (nativeButton(article, kind, true)) item.stats[kind] = true;
           else if (nativeButton(article, kind, false)) item.stats[kind] = false;
@@ -113,15 +116,15 @@ export function createPostActions(client, notify) {
             if (tweet) merge(id, postStats(tweet), true);
           }
         }
-        const enabled = desired ?? !item.stats[kind];
+        const enabled = saved?.enabled ?? desired ?? !item.stats[kind];
         if (item.stats[kind] === enabled) return enabled;
-        const { name, variables } = actionRequest(kind, enabled, id);
-        try {
-          await client.mutate(name, variables);
-        } catch (error) {
-          // For an unavailable operation X's own post controls can handle the action when present.
-          // Avoid retrying a delivered request with an uncertain server outcome.
-          if (error.code !== 'unavailable' || !await nativeToggle(id, kind, enabled)) throw error;
+        if (!saved) {
+          const { name, variables } = actionRequest(kind, enabled, id);
+          try {
+            await client.mutate(name, variables);
+          } catch (error) {
+            if (kind === 'bookmark' || error.code !== 'unavailable' || !await nativeToggle(id, kind, enabled)) throw error;
+          }
         }
         item.stats[kind] = enabled;
         const count = `${kind}Count`;

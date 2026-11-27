@@ -7,10 +7,11 @@ const SIZES = {
 };
 const SIZE_NAMES = Object.keys(SIZES);
 
-export function createPlayerWindow({ view, deck, handleKeys, isOpen, onMove }) {
+export function createPlayerWindow({ view, deck, handleKeys, isOpen, onMove, onFullscreen }) {
   const supported = 'documentPictureInPicture' in window;
   let floating;
   let changing = false;
+  let presentation = false, presenting = false, presentationFailed = false, restoreWindow;
   let size = readSetting('pip-size', 'balanced');
   if (!SIZE_NAMES.includes(size)) size = 'balanced';
   let fit = readSetting('video-fit', 'contain') === 'fill' ? 'fill' : 'contain';
@@ -76,6 +77,7 @@ export function createPlayerWindow({ view, deck, handleKeys, isOpen, onMove }) {
 
   async function fullscreen() {
     if (floating) return;
+    if (presentation) return remoteFullscreen(false);
     view.dismissMenu();
     try {
       if (view.shadow.fullscreenElement) await document.exitFullscreen();
@@ -85,11 +87,51 @@ export function createPlayerWindow({ view, deck, handleKeys, isOpen, onMove }) {
     }
   }
 
-  window.addEventListener('resize', () => { if (isOpen() && !floating) align(); });
+  const present = (type, restore) => chrome.runtime.sendMessage({ channel: 'xscroll.window', type, restore });
+
+  function setPresentation(enabled) {
+    presentation = enabled;
+    view.presentation(enabled);
+    align();
+    onFullscreen(presentation || Boolean(view.shadow.fullscreenElement));
+  }
+
+  async function remoteFullscreen(enabled = !(presentation || view.shadow.fullscreenElement)) {
+    if (presenting) return;
+    presentationFailed = false;
+    presenting = true;
+    try {
+      view.dismissMenu();
+      if (!enabled && view.shadow.fullscreenElement) await document.exitFullscreen();
+      else if (enabled) {
+        floating?.close();
+        const result = await present('enter');
+        if (!result?.active) throw new Error('Fullscreen failed');
+        restoreWindow = result.restore;
+        if (isOpen()) setPresentation(true);
+        else await present('leave', restoreWindow);
+      } else if (presentation) {
+        if ((await present('leave', restoreWindow))?.failed) throw new Error('Fullscreen failed');
+        setPresentation(false);
+      }
+    } catch {
+      presentationFailed = true;
+      if (isOpen()) view.message('Fullscreen isn’t available.');
+    } finally { presenting = false; }
+  }
+
+  window.addEventListener('resize', () => {
+    if (isOpen() && !floating) align();
+    if (presentation && !presenting) void present('state').then(result => {
+      if (result?.active === false && !presenting) setPresentation(false);
+    }).catch(() => {});
+  });
   document.addEventListener('fullscreenchange', () => {
     if (!isOpen()) return;
     align();
-    view.full(Boolean(view.shadow.fullscreenElement));
+    const full = presentation || Boolean(view.shadow.fullscreenElement);
+    view.full(full);
+    onFullscreen(full);
     view.focus();
   });
 
@@ -102,6 +144,9 @@ export function createPlayerWindow({ view, deck, handleKeys, isOpen, onMove }) {
 
   return {
     toggle, resize, fullscreen,
+    remoteFullscreen, presenting: () => presentation,
+    fullscreenActive: () => presentation || Boolean(view.shadow.fullscreenElement),
+    fullscreenFailed: () => presentationFailed,
     active: () => Boolean(floating),
     focus: () => floating?.focus(),
     closeMini: () => floating?.close(),

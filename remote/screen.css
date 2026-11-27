@@ -38,6 +38,7 @@ button:focus-visible { outline: 2px solid white; outline-offset: 3px; }
 #viewer { position: fixed; inset: 0; display: grid; place-items: center; background: #000; }
 #display-video { position: absolute; width: 100%; height: 100%; object-fit: contain; }
 #display-video[data-fit="fill"] { object-fit: cover; }
+#subtitle { position: absolute; z-index: 1; bottom: max(14%, 60px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 78%; margin: 0; padding: 4px 10px; border-radius: 6px; color: white; background: #000d; font-size: clamp(15px, 2vw, 32px); text-align: center; white-space: pre-line; pointer-events: none; }
 .wait { position: relative; padding: 14px; color: #d5d5d5; text-align: center; }
 .overlay {
   position: absolute;

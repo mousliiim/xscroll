@@ -1,5 +1,6 @@
 import { connectSearchTabs, nativeSearchResults } from './search-tabs.js';
-import { SEARCH_HELPER } from '../x/protocol.js';
+import { bookmarkInTab, bookmarkTabReply } from './bookmark-tabs.js';
+import { BOOKMARK_HELPER, SEARCH_HELPER } from '../x/protocol.js';
 import { REMOTE_ORIGIN, REMOTE_PERMISSION, remoteCommand, remoteStatus } from '../../remote/protocol.mjs';
 
 const STORAGE_KEY = 'xscrollRemoteTab';
@@ -41,6 +42,32 @@ chrome.runtime.onConnect.addListener(connectSearchTabs);
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id || !message) return;
   if (message.channel === SEARCH_HELPER) { nativeSearchResults(message, sender); return; }
+  if (message.channel === BOOKMARK_HELPER && sender.frameId === 0 && sender.origin === 'https://x.com' &&
+      Number.isInteger(sender.tab?.windowId)) {
+    if (message.type !== 'open') { respond(bookmarkTabReply(message, sender)); return; }
+    bookmarkInTab(message.postId, message.enabled, sender.tab.windowId).then(respond, () => respond(null));
+    return true;
+  }
+  if (message.channel === 'xscroll.window' && sender.frameId === 0 && sender.tab && sender.origin === 'https://x.com') {
+    async function present() {
+      const id = sender.tab.windowId;
+      const window = await chrome.windows.get(id);
+      if (message.type === 'state') return { active: window.state === 'fullscreen' };
+      if (message.type === 'leave') {
+        if (window.state === 'fullscreen') {
+          const state = ['normal', 'maximized', 'fullscreen'].includes(message.restore) ? message.restore : 'normal';
+          await chrome.windows.update(id, { state });
+        }
+        return { active: false };
+      }
+      if (message.type !== 'enter' || sender.tab.id !== await currentTab() || !await hasPermission()) return {};
+      await chrome.tabs.update(sender.tab.id, { active: true });
+      const updated = await chrome.windows.update(id, { state: 'fullscreen', focused: true });
+      return { active: updated.state === 'fullscreen', restore: window.state };
+    }
+    present().then(respond, () => respond({ failed: true }));
+    return true;
+  }
   if (message.channel === 'xscroll.remote.setup' && Object.values({
     standard: chrome.runtime.getURL('popup/index.html'),
     nested: chrome.runtime.getURL('extension/popup/index.html'),

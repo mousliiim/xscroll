@@ -82,6 +82,7 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
   const instance = randomBytes(12).toString('hex');
   let lastPoll = 0, state = remoteStatus(), waiting, commands = [];
   const sessions = new Map();
+  const commentReaders = new Set();
   const failures = new Map();
   const screen = createScreenSessions();
   let displayStream;
@@ -123,9 +124,9 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
     publishScreen();
   }
 
-  function phoneState() {
-    const { media, ...controls } = state;
-    return { ...controls, screenConnected: screen.connected() };
+  function phoneState(token) {
+    const { media, comments, ...controls } = state;
+    return { ...controls, comments: commentReaders.has(token) ? comments : null, screenConnected: screen.connected() };
   }
 
   function urls(port) {
@@ -148,6 +149,7 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
     lastPoll = 0;
     state = remoteStatus();
     commands = [];
+    commentReaders.clear();
     if (rotate) {
       sessions.clear();
       screen.reset();
@@ -176,7 +178,7 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
       }
       if (pathname === '/api/desktop/info' && request.method === 'GET') return reply(response, 200, { code, urls: urls(port), active });
       if (request.method !== 'POST') return reply(response, 405, { error: 'Méthode invalide.' });
-      const body = await readJSON(request, 5500);
+      const body = await readJSON(request, pathname === '/api/desktop/poll' ? 75000 : 5500);
       if (!body) return reply(response, 400, { error: 'Requête invalide.' });
       if (pathname === '/api/desktop/poll') {
         state = remoteStatus(body.state);
@@ -255,7 +257,7 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
       return reply(response, 200, { connected: screen.connected() });
     }
     if (pathname === '/api/status' && request.method === 'GET') {
-      return reply(response, 200, { paired: Boolean(paired), active, ...(paired && { state: phoneState() }) }, {
+      return reply(response, 200, { paired: Boolean(paired), active, ...(paired && { state: phoneState(token) }) }, {
         'X-XScroll-Relay': instance,
       });
     }
@@ -274,8 +276,12 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
       failures.delete(ip);
       const session = randomBytes(24).toString('hex');
       sessions.set(session, now + MAX_SESSION);
-      if (sessions.size > 32) sessions.delete(sessions.keys().next().value);
-      return reply(response, 200, { paired: true, active, state: phoneState() }, {
+      if (sessions.size > 32) {
+        const expired = sessions.keys().next().value;
+        sessions.delete(expired);
+        commentReaders.delete(expired);
+      }
+      return reply(response, 200, { paired: true, active, state: phoneState(session) }, {
         'Set-Cookie': `${COOKIE}=${session}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${MAX_SESSION / 1000}`,
       });
     }
@@ -288,15 +294,22 @@ export function createRemoteServer({ lan = false, fixedCode, allowedAddresses = 
       if (!command) return reply(response, 400, { error: 'Commande ou sujet invalide.' });
       const discovery = command.command === 'search' || command.command === 'shuffle';
       const postAction = command.command === 'post-action';
-      if (!discovery && !state.playable) return reply(response, 409, { error: 'Aucune vidéo en cours.' });
+      if (!discovery && command.command !== 'phone-replies' && !state.playable) return reply(response, 409, { error: 'Aucune vidéo en cours.' });
       if (postAction && command.postId !== state.post?.id) {
         return reply(response, 409, { error: 'La vidéo a changé. Réessaie sur le post affiché.' });
       }
+      if (command === 'phone-replies-more' && !commentReaders.has(token)) return reply(response, 403, { error: 'Ouvre les commentaires.' });
       if (discovery) commands = commands.filter(item => item.command.command !== 'search' && item.command.command !== 'shuffle');
-      if (command.command === 'speed' || command.command === 'speed-preview') {
+      if (['speed', 'speed-preview', 'volume', 'phone-replies'].includes(command.command)) {
         commands = commands.filter(item => item.command.command !== command.command);
       }
       if (commands.length >= 12) return reply(response, 429, { error: 'Le lecteur traite encore tes commandes.' });
+      if (command.command === 'phone-replies') {
+        for (const reader of commentReaders) if ((sessions.get(reader) || 0) <= now) commentReaders.delete(reader);
+        if (command.open) commentReaders.add(token);
+        else commentReaders.delete(token);
+        command.open = commentReaders.size > 0;
+      }
       commands.push({ command, at: now });
       sendCommands();
       return reply(response, 200, { received: true, ...(command.id && { id: command.id }) });

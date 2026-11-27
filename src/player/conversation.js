@@ -2,11 +2,51 @@ import { extractReplies } from '../x/replies.js';
 import { findPost, postStats } from '../x/model.js';
 import { readSetting, saveSetting } from './settings.js';
 
+const PHONE_PAGE = 24;
+
 export function createConversation({ client, view, postActions, currentVideo, align }) {
   let threads = new Map();
   let open = false, clipId, currentId;
+  let phoneOpen = false, phoneOffset = 0;
   let automatic = readSetting('auto-replies', 'false') === 'true';
+  let overlayEnabled = readSetting('fullscreen-comments', 'false') === 'true';
+  let fullscreen = false, overlayTimer, repliesShownBeforePage = 0;
+  const shownComments = new Set();
   let openOnFirstClip = automatic;
+  view.fullscreenComments(overlayEnabled);
+
+  const showingOverlay = () => fullscreen && overlayEnabled && Boolean(clipId);
+
+  function clearOverlay() {
+    clearTimeout(overlayTimer);
+    overlayTimer = undefined;
+    repliesShownBeforePage = 0;
+    shownComments.clear();
+    view.fullscreenComment();
+  }
+
+  function showNextComment() {
+    if (!showingOverlay() || overlayTimer !== undefined) return;
+    const thread = threadFor(clipId);
+    for (const reply of thread.items.values()) {
+      if (!reply.text.trim() || shownComments.has(reply.id)) continue;
+      shownComments.add(reply.id);
+      view.fullscreenComment(reply);
+      overlayTimer = setTimeout(() => {
+        view.fullscreenComment();
+        overlayTimer = setTimeout(() => {
+          overlayTimer = undefined;
+          showNextComment();
+        }, 650);
+      }, Math.min(9500, 4800 + reply.text.length * 13));
+      return;
+    }
+    if (thread.loading || thread.failed) return;
+    if (!thread.loaded || (thread.cursor && shownComments.size > repliesShownBeforePage)) {
+      repliesShownBeforePage = shownComments.size;
+      void more();
+    }
+  }
 
   function syncScroll() {
     const video = currentVideo();
@@ -29,13 +69,13 @@ export function createConversation({ client, view, postActions, currentVideo, al
   }
 
   async function more() {
-    const id = currentId;
-    if (!open || !id) return;
+    const id = clipId;
+    if ((!open && !phoneOpen && !showingOverlay()) || !id) return;
     const thread = threadFor(id);
     if (thread.loading || (thread.loaded && !thread.cursor)) return;
     const cursor = thread.cursor;
     thread.loading = true;
-    renderStatus(thread);
+    if (open) renderStatus(thread);
     const data = await client.detail(id, cursor);
     const page = extractReplies(data, id, thread.items);
     const tweet = findPost(data, id);
@@ -57,6 +97,11 @@ export function createConversation({ client, view, postActions, currentVideo, al
       view.replies.appendReplies(fresh);
       renderStatus(thread);
     }
+    if (clipId === id && threads.get(id) === thread) showNextComment();
+  }
+
+  function loadPhoneThread() {
+    if (phoneOpen && clipId && !threadFor(clipId).loaded) void more();
   }
 
   function render() {
@@ -87,13 +132,57 @@ export function createConversation({ client, view, postActions, currentVideo, al
       view.replies.step(direction);
     },
     setOpen, more, syncScroll,
+    setFullscreen(value) {
+      if (fullscreen === value) return;
+      fullscreen = value;
+      clearOverlay();
+      showNextComment();
+    },
+    fullscreenComments: () => overlayEnabled,
+    toggleFullscreenComments() {
+      overlayEnabled = !overlayEnabled;
+      saveSetting('fullscreen-comments', overlayEnabled);
+      view.fullscreenComments(overlayEnabled);
+      clearOverlay();
+      if (showingOverlay() && threadFor(clipId).failed) void more();
+      else showNextComment();
+    },
+    setPhoneOpen(value) {
+      phoneOpen = value;
+      phoneOffset = 0;
+      loadPhoneThread();
+    },
+    phoneComments() {
+      if (!phoneOpen || !clipId) return null;
+      const thread = threadFor(clipId);
+      return {
+        id: clipId,
+        phase: thread.loading ? 'loading' : thread.failed ? 'error' : thread.items.size ? 'ready' : 'empty',
+        more: thread.items.size > phoneOffset + PHONE_PAGE || Boolean(thread.cursor),
+        items: [...thread.items.values()].slice(phoneOffset, phoneOffset + PHONE_PAGE).map(reply => ({ ...reply, author: reply.handle })),
+      };
+    },
+    async phoneMore() {
+      if (!phoneOpen || !clipId) return;
+      const id = clipId;
+      const thread = threadFor(id);
+      const next = phoneOffset + PHONE_PAGE;
+      if (thread.items.size <= next) await more();
+      if (phoneOpen && clipId === id && thread.items.size > next) phoneOffset = next;
+    },
     setClip(id) {
+      if (clipId !== id) {
+        phoneOffset = 0;
+        clearOverlay();
+      }
       clipId = id;
       if (id && openOnFirstClip) {
         openOnFirstClip = false;
         setOpen(true, false);
       } else if (id && open && id !== currentId) render();
       else if (!id && open) setOpen(false, false);
+      loadPhoneThread();
+      showNextComment();
       syncScroll();
     },
     toggleAuto() {
@@ -106,6 +195,8 @@ export function createConversation({ client, view, postActions, currentVideo, al
       setOpen(false, false);
       threads = new Map();
       clipId = currentId = undefined;
+      phoneOffset = 0;
+      clearOverlay();
       openOnFirstClip = automatic;
       view.replies.clearReplies();
     },

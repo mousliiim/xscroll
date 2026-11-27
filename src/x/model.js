@@ -100,7 +100,8 @@ export function extractVideos(root) {
       const key = typeof media.id_str === 'string' && /^[\w-]{1,80}$/.test(media.id_str) ? media.id_str : variants[0].url;
       found.set(key, {
         key, tweetId: id, mediaIndex, screenRestricted, poster: mediaURL(media.media_url_https, 'pbs.twimg.com'),
-        url: variants[0].url, variants, user: user.handle, userId: user.userId,
+        url: variants[0].url, variants, captionPlaylist: values.map(value => mediaURL(value?.url, 'video.twimg.com'))
+          .find(url => /\.m3u8(?:\?|$)/i.test(url)), user: user.handle, userId: user.userId,
         name: user.name, avatar: user.avatar, text, replyCount: stats.replyCount, stats,
       });
     }
@@ -123,6 +124,7 @@ export function acceptClips(values) {
     for (const key of ['likeCount', 'repostCount', 'bookmarkCount', 'replyCount']) stats[key] = counter(value.stats?.[key]);
     clips.push({
       key: value.key, tweetId: value.tweetId, mediaIndex: counter(value.mediaIndex), screenRestricted: value.screenRestricted === true, variants, url: variants[0].url,
+      captionPlaylist: mediaURL(value.captionPlaylist, 'video.twimg.com'),
       user: isHandle(value.user) ? value.user : '', name: typeof value.name === 'string' ? value.name.slice(0, 80) : '',
       poster: mediaURL(value.poster, 'pbs.twimg.com'), avatar: mediaURL(value.avatar, 'pbs.twimg.com'),
       text: typeof value.text === 'string' ? value.text.slice(0, 18000) : '',

@@ -10,6 +10,7 @@ const viewer = find('#viewer');
 const video = find('#display-video');
 const wait = find('#wait');
 const caption = find('#caption');
+const subtitle = find('#subtitle');
 const author = find('#author');
 const authorName = find('#author-name');
 const avatar = find('#author-avatar');
@@ -139,6 +140,7 @@ function showPlayback(value) {
       video.load();
     }
     caption.hidden = true;
+    subtitle.hidden = true;
     if (avatar.hasAttribute('src')) avatar.removeAttribute('src');
     avatar.hidden = true;
     clipKey = fallbackSource = bufferingSince = stalledSince = undefined;
@@ -155,6 +157,9 @@ function showPlayback(value) {
   else stalledSince = undefined;
   loadSource(fallbackSource || media.url);
   video.dataset.fit = media.fit;
+  video.loop = media.loop !== false;
+  subtitle.hidden = !media.subtitle;
+  raw(subtitle, media.subtitle || '');
   caption.hidden = !media.author && !media.name && !media.text;
   const handle = media.author ? '@' + media.author : '';
   raw(authorName, media.name || handle || 'X');

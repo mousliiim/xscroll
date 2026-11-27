@@ -29,6 +29,8 @@
     <symbol id="search-icon" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4 4"/></symbol>
     <symbol id="sound-icon" viewBox="0 0 24 24"><path d="M11 5l-5 4H3v6h3l5 4ZM15 9a4 4 0 0 1 0 6m2.5-8.5a7.5 7.5 0 0 1 0 11"/></symbol>
     <symbol id="muted-icon" viewBox="0 0 24 24"><path d="M11 5l-5 4H3v6h3l5 4Zm5 4 6 6m0-6-6 6"/></symbol>
+    <symbol id="image-settings" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m13-5v3a2 2 0 0 1-2 2h-3"/><rect x="8" y="8" width="8" height="8" rx="1"/></symbol>
+    <symbol id="comment-icon" viewBox="0 0 24 24"><path d="M21 11a8 8 0 0 1-8 8H9l-5 2 1.5-4A8 8 0 0 1 4 11a8 8 0 0 1 8-8h1a8 8 0 0 1 8 8Z"/></symbol>
   </svg>
   <main class="shell">
     <header class="topbar">
@@ -66,7 +68,10 @@
         </div>
         <div class="controls">
           <button type="button" data-command="rewind">−5 s</button>
-          <button type="button" data-command="toggle-mute" aria-pressed="false"><svg aria-hidden="true"><use href="#sound-icon"/></svg><span>Son</span></button>
+          <div class="audio-controls">
+            <button type="button" data-command="toggle-mute" aria-pressed="false" aria-label="Couper le son"><svg aria-hidden="true"><use href="#sound-icon"/></svg></button>
+            <input id="remote-volume" type="range" min="0" max="100" step="1" value="100" aria-label="Volume" disabled>
+          </div>
           <button type="button" data-command="forward">+5 s</button>
         </div>
       </section>
@@ -123,10 +128,42 @@
         </div>
         <p id="discover-status" class="feedback" role="status"></p>
       </section>
-      <button type="button" class="screen-trigger" id="open-screen" aria-haspopup="dialog">
-        <svg aria-hidden="true"><use href="#screen"/></svg><span>Écran externe</span><span id="screen-badge"></span>
-      </button>
-      <dialog class="card screen-dialog" id="screen-dialog" aria-labelledby="screen-title">
+      <div class="utility-row">
+        <button type="button" id="open-playback" aria-haspopup="dialog" aria-label="Réglages vidéo"><svg aria-hidden="true"><use href="#image-settings"/></svg><span>Lecture</span></button>
+        <button type="button" id="open-comments" aria-haspopup="dialog" disabled><svg aria-hidden="true"><use href="#comment-icon"/></svg><span>Commentaires</span></button>
+        <button type="button" id="open-screen" aria-haspopup="dialog" aria-label="Écran externe" aria-describedby="screen-badge"><svg aria-hidden="true"><use href="#screen"/></svg><span>Écran</span><span id="screen-badge" class="visually-hidden"></span></button>
+      </div>
+      <dialog class="card remote-dialog" id="playback-dialog" aria-labelledby="playback-title">
+        <div class="module-heading">
+          <h2 id="playback-title">Image et lecture</h2>
+          <form method="dialog"><button type="submit" aria-label="Fermer" autofocus><svg aria-hidden="true"><use href="#close"/></svg></button></form>
+        </div>
+        <div class="dialog-body">
+          <button type="button" data-command="fullscreen" aria-pressed="false">Plein écran du lecteur</button>
+          <button type="button" data-command="fullscreen-comments" aria-pressed="false" aria-describedby="fullscreen-comments-hint">Commentaires à l’écran</button>
+          <p id="fullscreen-comments-hint">Les commentaires apparaissent en plein écran.</p>
+          <div class="fit-controls" role="group" aria-label="Cadrage de la vidéo">
+            <button type="button" data-command="fit" aria-pressed="true">Image entière</button>
+            <button type="button" data-command="fill" aria-pressed="false">Remplir</button>
+          </div>
+          <button type="button" data-command="auto-next" aria-pressed="false">Vidéo suivante automatiquement</button>
+          <button type="button" data-command="captions" aria-pressed="false" disabled>Sous-titres</button>
+          <p id="caption-hint">Sous-titres indisponibles pour cette vidéo.</p>
+          <p id="playback-feedback" class="feedback" role="status"></p>
+        </div>
+      </dialog>
+      <dialog class="card remote-dialog" id="comments-dialog" aria-labelledby="comments-title">
+        <div class="module-heading">
+          <h2 id="comments-title">Commentaires</h2>
+          <form method="dialog"><button type="submit" aria-label="Fermer" autofocus><svg aria-hidden="true"><use href="#close"/></svg></button></form>
+        </div>
+        <div class="comments-scroll" tabindex="0" aria-label="Commentaires">
+          <ol id="phone-comments"></ol>
+          <p id="comments-feedback" role="status"></p>
+          <button type="button" data-command="phone-replies-more" hidden>Afficher plus de réponses</button>
+        </div>
+      </dialog>
+      <dialog class="card remote-dialog" id="screen-dialog" aria-labelledby="screen-title">
         <div class="module-heading">
           <h2 id="screen-title">Écran externe</h2>
           <form method="dialog"><button type="submit" aria-label="Fermer" autofocus><svg aria-hidden="true"><use href="#close"/></svg></button></form>

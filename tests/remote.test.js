@@ -57,6 +57,20 @@ test('a phone action identifies the exact post and its intended state', () => {
   assert.equal(status.postResults[0].error, 'changed');
 });
 
+test('validates remote playback settings and keeps comments bounded', () => {
+  assert.deepEqual(remoteCommand({ command: 'volume', volume: .437 }), { command: 'volume', volume: .44 });
+  assert.equal(remoteCommand({ command: 'volume', volume: 2 }), null);
+  assert.equal(remoteCommand({ command: 'phone-replies', open: 'yes' }), null);
+  assert.deepEqual(remoteCommand({ command: 'phone-replies', open: true }), { command: 'phone-replies', open: true });
+  const state = remoteStatus({ ready: true, fullscreen: true, autoNext: true, fit: 'fill', captionsAvailable: true,
+    comments: { id: '123', phase: 'ready', items: [{ id: '456', author: 'alice', text: 'x'.repeat(500) }, { id: 'bad', text: 'ignored' }] } });
+  assert.equal(state.fullscreen, true);
+  assert.equal(state.autoNext, true);
+  assert.equal(state.fit, 'fill');
+  assert.equal(state.comments.items.length, 1);
+  assert.equal(state.comments.items[0].text.length, 440);
+});
+
 test('a display avatar uses the public profile CDN path without parameters', () => {
   const url = 'https://video.twimg.com/public.mp4';
   assert.equal(screenMedia({ url, avatar: 'https://pbs.twimg.com/profile_images/1/face_normal.jpg?token=secret' }).avatar,

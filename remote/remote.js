@@ -23,6 +23,17 @@ const discoverStatus = find('#discover-status');
 const speedRange = find('#speed-range');
 const speedTrack = find('.speed-track');
 const speedOutput = find('#speed-output');
+const remoteVolume = find('#remote-volume');
+const playbackDialog = find('#playback-dialog');
+const fullscreenCommentsHint = find('#fullscreen-comments-hint');
+const captionHint = find('#caption-hint');
+const playbackFeedback = find('#playback-feedback');
+const commentsDialog = find('#comments-dialog');
+const openComments = find('#open-comments');
+const commentsList = find('#phone-comments');
+const commentsFeedback = find('#comments-feedback');
+const commentIds = new Set();
+let commentsFor, volumeEditingUntil = 0, captionsAvailable = false;
 const remoteAuthor = find('#remote-author');
 const postFeedback = find('#post-feedback');
 const postButtons = [...player.querySelectorAll('[data-post]')];
@@ -72,7 +83,7 @@ function renderPost() {
   remoteAuthor.hidden = !post?.author;
   for (const [key, request] of pendingPosts) {
     const result = postResults.find(item => item.id === request.id);
-    const expired = Date.now() - request.started > 18000;
+    const expired = Date.now() - request.started > 32000;
     if (!result && !expired) continue;
     pendingPosts.delete(key);
     if (request.postId === id && !result?.ok) {
@@ -159,6 +170,9 @@ function renderControls() {
   if (!playable) releaseHold();
   for (const button of [...buttons.values(), ...previews]) button.disabled = !playable;
   speedRange.disabled = !playable;
+  remoteVolume.disabled = !playable;
+  openComments.disabled = !playable || !post?.id;
+  buttons.get('captions').disabled = !playable || !captionsAvailable;
   hint.hidden = !paired || available;
   shuffle.disabled = !available || discoverySending;
   topic.disabled = !available;
@@ -166,6 +180,49 @@ function renderControls() {
   renderDiscovery();
   renderPost();
   renderScreen();
+}
+
+function renderComments(comments) {
+  if (!commentsDialog.open) return;
+  if (commentsFor !== post?.id) {
+    commentsFor = post?.id;
+    commentsList.replaceChildren();
+    commentIds.clear();
+    commentsList.parentElement.scrollTop = 0;
+  }
+  const matching = comments?.id === commentsFor && commentsFor;
+  const phase = matching ? comments.phase : 'loading';
+  for (const reply of matching ? comments.items || [] : []) {
+    if (commentIds.has(reply.id)) continue;
+    commentIds.add(reply.id);
+    const item = document.createElement('li');
+    item.toggleAttribute('data-nested', reply.nested);
+    const author = document.createElement('strong');
+    author.textContent = reply.name || (reply.author ? '@' + reply.author : '');
+    item.append(author);
+    if (reply.name && reply.author) {
+      const handle = document.createElement('small');
+      handle.textContent = '@' + reply.author;
+      item.append(handle);
+    }
+    const text = document.createElement('p');
+    text.textContent = reply.text;
+    item.append(text);
+    commentsList.append(item);
+  }
+  const more = buttons.get('phone-replies-more');
+  more.hidden = !matching || (!comments.more && phase !== 'error');
+  more.disabled = !playable || phase === 'loading';
+  write(more, phase === 'error' ? 'Réessayer' : 'Afficher plus de réponses');
+  const message = !playable ? 'Ouvre le lecteur XScroll sur ton ordinateur.' : {
+    loading: 'Chargement des réponses…', empty: 'Aucune réponse à afficher.', error: 'Impossible de charger les réponses depuis X.',
+  }[phase];
+  write(commentsFeedback, message || '');
+}
+
+function drawVolume(value) {
+  remoteVolume.value = value;
+  attribute(remoteVolume, 'aria-valuetext', () => new Intl.NumberFormat(language(), { style: 'percent' }).format(value / 100));
 }
 
 function render(result) {
@@ -177,16 +234,18 @@ function render(result) {
   if (post?.id !== result.state?.post?.id) write(postFeedback, '');
   post = result.state?.post;
   postResults = result.state?.postResults || [];
+  captionsAvailable = result.state?.captionsAvailable === true;
   screenConnected = result.state?.screenConnected === true;
   if (!paired) pending = undefined;
   pairing.hidden = paired;
   player.hidden = !paired;
-  if (!paired && screenDialog.open) screenDialog.close();
+  if (!paired) for (const dialog of [screenDialog, playbackDialog, commentsDialog]) if (dialog.open) dialog.close();
   code.disabled = pairingNow;
   connection(available ? 'ready' : paired ? 'offline' : 'waiting',
     available ? 'Lecteur connecté' : paired ? 'Lecteur déconnecté' : 'Prêt à jumeler');
   renderCode();
   renderControls();
+  renderComments(result.state?.comments);
   if (!result.state) return;
   const { paused, muted, rate, rateTarget, replies, autoReplies } = result.state;
   const play = buttons.get('toggle-play');
@@ -195,7 +254,17 @@ function render(result) {
   const sound = buttons.get('toggle-mute');
   sound.setAttribute('aria-pressed', String(muted));
   sound.querySelector('use').setAttribute('href', muted ? '#muted-icon' : '#sound-icon');
-  write(sound.querySelector('span'), muted ? 'Son coupé' : 'Son');
+  attribute(sound, 'aria-label', muted ? 'Rétablir le son' : 'Couper le son');
+  if (Date.now() >= volumeEditingUntil) drawVolume(Math.round((result.state.volume ?? 1) * 100));
+  for (const [command, selected] of Object.entries({
+    fullscreen: result.state.fullscreen, 'fullscreen-comments': result.state.fullscreenComments,
+    fit: result.state.fit !== 'fill', fill: result.state.fit === 'fill',
+    'auto-next': result.state.autoNext, captions: captionsAvailable && result.state.captions,
+  })) buttons.get(command).setAttribute('aria-pressed', String(Boolean(selected)));
+  fullscreenCommentsHint.hidden = result.state.fullscreen === true;
+  write(buttons.get('fullscreen'), result.state.fullscreen ? 'Quitter le plein écran' : 'Plein écran du lecteur');
+  captionHint.hidden = captionsAvailable;
+  write(playbackFeedback, result.state.fullscreenFailed ? 'Le plein écran est indisponible.' : '');
   const repliesButton = buttons.get('replies');
   repliesButton.setAttribute('aria-pressed', String(replies));
   write(repliesButton.querySelector('.reply-toggle-label'), replies ? 'Masquer' : 'Afficher');
@@ -217,6 +286,7 @@ async function update() {
     connection('offline', 'Relais indisponible');
     renderCode();
     renderControls();
+    renderComments();
   } finally {
     polling = false;
   }
@@ -249,6 +319,19 @@ async function manageScreen(action, data) {
 }
 
 find('#open-screen').addEventListener('click', () => screenDialog.showModal());
+find('#open-playback').addEventListener('click', () => playbackDialog.showModal());
+openComments.addEventListener('click', () => {
+  commentsFor = undefined;
+  commentsDialog.showModal();
+  renderComments();
+  void send('phone-replies', { open: true });
+});
+commentsDialog.addEventListener('close', () => { if (available) void send('phone-replies', { open: false }); });
+window.addEventListener('pagehide', () => {
+  if (commentsDialog.open && navigator.sendBeacon) {
+    navigator.sendBeacon('/api/command', new Blob(['{"command":"phone-replies","open":false}'], { type: 'application/json' }));
+  }
+});
 copyScreen.addEventListener('click', async () => {
   try {
     if (navigator.clipboard) await navigator.clipboard.writeText(screenLink.value);
@@ -306,9 +389,9 @@ form.addEventListener('submit', async event => {
 
 async function send(command, options) {
   const subject = options?.topic;
-  const speedChange = command === 'speed' || command === 'speed-preview';
+  const adjustment = ['speed', 'speed-preview', 'volume'].includes(command);
   const discovering = command === 'shuffle' || command === 'search';
-  if (discovering ? !available || discoverySending : !playable) return;
+  if (discovering ? !available || discoverySending : command === 'phone-replies' ? !available : !playable) return;
   if (discovering) {
     discoverySending = true;
     renderControls();
@@ -318,8 +401,10 @@ async function send(command, options) {
     const result = await call('command', { command, ...options });
     if (result.id) pending = { id: result.id, command, topic: subject, phase: 'loading', started: Date.now() };
     if (command === 'search' && topic.value.trim() === subject) topic.blur();
-    if (!speedChange) setTimeout(update, 330);
+    if (!adjustment) setTimeout(update, 330);
   } catch (error) {
+    if (commentsDialog.open) write(commentsFeedback, error.message);
+    else if (playbackDialog.open) write(playbackFeedback, error.message);
     write(notice, error.message);
     void update();
   } finally {
@@ -350,7 +435,7 @@ function scheduleRate() {
     pendingRates.delete(command);
     speedInFlight = true;
     nextRateAt = performance.now() + 100;
-    try { await send(command, { rate }); }
+    try { await send(command, command === 'volume' ? { volume: rate } : { rate }); }
     finally {
       speedInFlight = false;
       scheduleRate();
@@ -368,6 +453,13 @@ speedRange.addEventListener('input', () => {
   editingUntil = Date.now() + 1250;
   drawSpeed(rate);
   queueRate('speed', rate);
+});
+
+remoteVolume.addEventListener('input', () => {
+  const value = remoteVolume.valueAsNumber;
+  volumeEditingUntil = Date.now() + 1250;
+  drawVolume(value);
+  queueRate('volume', value / 100);
 });
 
 const releaseHold = bindHold(previews, button => {
@@ -401,7 +493,7 @@ search.addEventListener('submit', event => {
   if (subject) void send('search', { topic: subject });
 });
 document.addEventListener('keydown', event => {
-  if (screenDialog.open || event.target.closest('input, button, select') || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (screenDialog.open || playbackDialog.open || commentsDialog.open || event.target.closest('input, button, select') || event.metaKey || event.ctrlKey || event.altKey) return;
   const command = {
     ' ': 'toggle-play', ArrowUp: 'previous', ArrowDown: 'next', ArrowLeft: 'rewind',
     ArrowRight: 'forward', m: 'toggle-mute', r: 'replies', '+': 'faster', '-': 'slower',

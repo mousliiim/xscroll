@@ -3,7 +3,7 @@ export const REMOTE_ORIGIN = 'http://127.0.0.1:4781';
 export const REMOTE_PERMISSION = 'http://127.0.0.1/*';
 export const MAX_TOPIC_LENGTH = 120;
 
-const playback = new Set(['previous', 'next', 'toggle-play', 'toggle-mute', 'rewind', 'forward', 'slower', 'faster', 'reset-speed', 'replies', 'replies-auto', 'replies-up', 'replies-down']);
+const playback = new Set(['previous', 'next', 'toggle-play', 'toggle-mute', 'rewind', 'forward', 'slower', 'faster', 'reset-speed', 'replies', 'replies-auto', 'replies-up', 'replies-down', 'fullscreen', 'fullscreen-comments', 'fit', 'fill', 'auto-next', 'captions', 'phone-replies-more']);
 export const POST_ACTIONS = ['like', 'bookmark', 'repost'];
 const postId = value => typeof value === 'string' && /^\d{1,25}$/.test(value);
 const requestId = value => typeof value === 'string' && /^[a-f0-9]{16}$/.test(value);
@@ -18,6 +18,13 @@ export function remoteTopic(value) {
 
 export function remoteCommand(value) {
   if (playback.has(value)) return value;
+  if (value?.command === 'volume') {
+    return Number.isFinite(value.volume) && value.volume >= 0 && value.volume <= 1 ?
+      { command: 'volume', volume: Math.round(value.volume * 100) / 100 } : null;
+  }
+  if (value?.command === 'phone-replies') {
+    return typeof value.open === 'boolean' ? { command: 'phone-replies', open: value.open } : null;
+  }
   if (value?.command === 'speed') {
     const rate = value.rate;
     return Number.isFinite(rate) && rate >= .25 && rate <= 2 ?
@@ -53,6 +60,14 @@ export function remoteStatus(value) {
       Number.isFinite(value?.rate) ? Math.max(.25, Math.min(2, value.rate)) : 1,
     replies: value?.replies === true,
     autoReplies: value?.autoReplies === true,
+    autoNext: value?.autoNext === true,
+    fullscreen: value?.fullscreen === true,
+    fullscreenComments: value?.fullscreenComments === true,
+    fullscreenFailed: value?.fullscreenFailed === true,
+    fit: value?.fit === 'fill' ? 'fill' : 'contain',
+    captions: value?.captions === true,
+    captionsAvailable: value?.captionsAvailable === true,
+    comments: ready ? remoteComments(value.comments) : null,
     discovery,
     post: ready ? remotePost(value.post) : null,
     postResults: Array.isArray(value?.postResults) ? value.postResults.slice(-8).flatMap(entry => {
@@ -62,6 +77,20 @@ export function remoteStatus(value) {
     }) : [],
     volume: Number.isFinite(value?.volume) ? Math.max(0, Math.min(1, value.volume)) : 1,
     media: ready ? screenMedia(value.media) : null,
+  };
+}
+
+function remoteComments(value) {
+  if (!postId(value?.id) || !phases.has(value.phase)) return null;
+  return {
+    id: value.id,
+    phase: value.phase,
+    more: value.more === true,
+    items: Array.isArray(value.items) ? value.items.slice(0, 32).flatMap(reply => {
+      if (!postId(reply?.id) || typeof reply.text !== 'string') return [];
+      return [{ id: reply.id, author: handle(reply.author), name: typeof reply.name === 'string' ? reply.name.slice(0, 70) : '',
+        nested: reply.nested === true, text: reply.text.slice(0, 440) }];
+    }) : [],
   };
 }
 
@@ -113,8 +142,10 @@ export function screenMedia(value) {
     time: Number.isFinite(value.time) ? Math.max(0, value.time) : 0,
     duration: Number.isFinite(value.duration) ? Math.max(0, value.duration) : 0,
     stalled: value.stalled === true,
+    loop: value.loop !== false,
     fit: value.fit === 'fill' ? 'fill' : 'contain',
     text: typeof value.text === 'string' ? value.text.slice(0, 320) : '',
+    subtitle: typeof value.subtitle === 'string' ? value.subtitle.slice(0, 400) : '',
     author: handle(value.author),
     name: typeof value.name === 'string' ? value.name.slice(0, 80) : '',
     avatar: screenAvatar(value.avatar),

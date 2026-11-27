@@ -1,13 +1,14 @@
-import { isPostId } from './model.js';
-import { BOOKMARK_OPERATIONS, MUTATION_OPERATIONS, QUERY_OPERATIONS, SITE } from './protocol.js';
+import { findPost, isPostId, postURL } from './model.js';
+import { BOOKMARK_OPERATIONS, bookmarkConfirmed, bookmarkDirection, MUTATION_OPERATIONS, QUERY_OPERATIONS, SITE } from './protocol.js';
 
 const BUNDLE = /\/(?:main|runtime|entry-client-[\w-]+|bundle\.(?:ImmersiveMediaViewer|Conversation|TweetDetail|Bookmarks|TweetAction|Search(?:Timeline)?))\.[\w.-]+\.js$/;
 const CHUNK = /(\d+):"(bundle\.(?:ImmersiveMediaViewer|Conversation|TweetDetail|Bookmarks|TweetAction|Search(?:Timeline)?))"/g;
 const METADATA = /queryId\s*:\s*"([\w-]+)"\s*,\s*operationName\s*:\s*"(\w+)"\s*,\s*operationType\s*:\s*"(query|mutation)"(?:\s*,\s*metadata\s*:\s*\{\s*featureSwitches\s*:\s*(\[[^\]]*\])\s*,\s*fieldToggles\s*:\s*(\[[^\]]*\]))?/g;
-const RELAY_BOOKMARK = /params:\{id:\s*["'`]([\w-]+)["'`],\s*metadata:\{[^}]*\},\s*name:\s*["'`](BookmarkAdd|BookmarkDelete)["'`],\s*operationKind:\s*["'`]mutation["'`]/g;
+const RELAY_OPERATION = /params:\{id:\s*["'`]([\w-]+)["'`],\s*metadata:\{[^}]*\},\s*name:\s*["'`](BookmarkAdd|BookmarkDelete|TweetDetail)["'`],\s*operationKind:\s*["'`](mutation|query)["'`]/g;
 const MODULE_ASSET = /^\/x-web\/(?:x-web\/)?(?:entry-client-[\w-]+|assets\/[\w-]+)\.js$/;
 const STATIC_IMPORT = /\b(?:from|import)\s*["'](\.\/(?:assets\/)?[\w-]+\.js)["']/g;
-const BOOKMARK_RESULT = { CreateBookmark: 'tweet_bookmark_put', DeleteBookmark: 'tweet_bookmark_delete' };
+const detailProviders = values => Object.fromEntries(Object.entries(values || {}).filter(([key, value]) =>
+  /^__relay_internal__pv__[a-z0-9_]{1,140}$/i.test(key) && typeof value === 'boolean').slice(0, 100));
 
 function safeBundle(url) {
   try {
@@ -36,7 +37,9 @@ export function parseOperations(sources) {
       const allowed = type === 'query' ? QUERY_OPERATIONS : MUTATION_OPERATIONS;
       if (allowed.has(name)) operations.set(name, { id, features: boolKeys(features, true), toggles: boolKeys(toggles, false) });
     }
-    for (const [, id, name] of source.matchAll(RELAY_BOOKMARK)) operations.set(name, { id });
+    for (const [, id, name, type] of source.matchAll(RELAY_OPERATION)) {
+      if ((type === 'query' ? QUERY_OPERATIONS : MUTATION_OPERATIONS).has(name)) operations.set(name, { id, relay: true });
+    }
   }
   return { bearer, operations };
 }
@@ -89,6 +92,22 @@ export function createXClient() {
     return discovery;
   }
 
+  async function renderedDetail(id) {
+    const markup = await readText(postURL(id));
+    const params = markup.match(/key:"([\w-]{1,80})(\{(?:[^"\\]|\\.){1,20000}\})",name:"TweetDetail"/);
+    if (params) {
+      try { observed.set('TweetDetail', { id: params[1], relay: true, providers: detailProviders(JSON.parse(JSON.parse('"' + params[2] + '"'))) }); }
+      catch { /* A legacy page has no Relay variables. */ }
+    }
+    for (const [, serialized] of markup.matchAll(/kind:"Result\.Ok",value:("(?:[^"\\]|\\.)*")/g)) {
+      if (!serialized.includes('threaded_conversation_with_injections_v2')) continue;
+      try {
+        const payload = JSON.parse(JSON.parse(serialized));
+        if (findPost(payload, id)) return payload;
+      } catch { /* Ignore unrelated page data. */ }
+    }
+  }
+
   async function request(name, variables, method) {
     const allowed = method === 'POST' ? MUTATION_OPERATIONS : QUERY_OPERATIONS;
     if (!allowed.has(name)) throw new XRequestError('unavailable', 'Action unavailable in this version of X.');
@@ -105,8 +124,9 @@ export function createXClient() {
     const wireName = modern && (observed.has(modern) || (!observed.has(name) && definitions?.operations.has(modern))) ? modern : name;
     const operation = definition(definitions, wireName);
     if (!operation || !definitions?.bearer) throw new XRequestError('unavailable', 'This action is temporarily unavailable.');
-    const relayBookmark = wireName !== name;
-    const url = relayBookmark ? new URL(`https://api.x.com/graphql/${operation.id}/${wireName}`) :
+    const relay = operation.relay === true || wireName !== name;
+    const relayBookmark = relay && bookmarkDirection(wireName) !== undefined;
+    const url = relay ? new URL(`https://api.x.com/graphql/${operation.id}/${wireName}`) :
       new URL(`/i/api/graphql/${operation.id}/${name}`, SITE);
     const headers = {
       authorization: definitions.bearer,
@@ -114,12 +134,14 @@ export function createXClient() {
       'x-twitter-auth-type': 'OAuth2Session',
       'x-twitter-active-user': 'yes',
     };
-    const options = { method, headers, credentials: relayBookmark ? 'include' : 'same-origin', signal: AbortSignal.timeout(10000) };
+    const options = { method, headers, credentials: relay ? 'include' : 'same-origin', signal: AbortSignal.timeout(10000) };
     if (method === 'POST') {
       headers['content-type'] = 'application/json';
       options.body = JSON.stringify({ queryId: operation.id, variables: relayBookmark ? { tweetId: variables.tweet_id } : variables });
     } else {
-      url.searchParams.set('variables', JSON.stringify(variables));
+      const detail = relay && name === 'TweetDetail';
+      url.searchParams.set('variables', JSON.stringify(detail ? { ...operation.providers,
+        focalTweetId: variables.focalTweetId, cursor: variables.cursor ?? null, withFocalTweet: true, rankingMode: null, referrer: null } : variables));
       if (operation.features) url.searchParams.set('features', operation.features);
       if (operation.toggles) url.searchParams.set('fieldToggles', operation.toggles);
     }
@@ -131,8 +153,8 @@ export function createXClient() {
     }
     const payload = await response.json();
     if (method === 'POST') {
-      const bookmarkResult = BOOKMARK_RESULT[name];
-      const confirmed = bookmarkResult ? (payload?.data ?? payload)?.[bookmarkResult] === 'Done' :
+      const bookmark = bookmarkDirection(name);
+      const confirmed = bookmark !== undefined ? bookmarkConfirmed(payload, bookmark) :
         payload?.data && Object.values(payload.data).some(Boolean);
       if (!confirmed || payload.errors?.length) {
         const code = !confirmed && payload.errors?.length ? 'unavailable' : 'server';
@@ -145,11 +167,17 @@ export function createXClient() {
   }
 
   return {
-    remember({ name, id, features, toggles }) {
+    remember({ name, id, features, toggles, relay, variables }) {
       if ((!QUERY_OPERATIONS.has(name) && !MUTATION_OPERATIONS.has(name)) || !/^[\w-]{1,80}$/.test(id || '')) return;
       // The page can only suggest an ID and read feature flags. All routes and writes remain allowlisted.
+      let providers;
+      if (relay && name === 'TweetDetail' && typeof variables === 'string' && variables.length <= 18000) {
+        try { providers = detailProviders(JSON.parse(variables)); } catch { /* Ignore malformed variables. */ }
+      }
       observed.set(name, {
         id,
+        relay: relay === true && (name === 'TweetDetail' || bookmarkDirection(name) !== undefined),
+        providers,
         features: typeof features === 'string' && features.length < 18000 ? features : '{}',
         toggles: typeof toggles === 'string' && toggles.length < 8000 ? toggles : '{}',
       });
@@ -165,7 +193,7 @@ export function createXClient() {
           focalTweetId: id, ...(cursor && { cursor }),
           includePromotedContent: false, with_rux_injections: false, withCommunity: true,
           withQuickPromoteEligibilityTweetFields: false, withBirdwatchNotes: false, withVoice: true, rankingMode: 'Relevance',
-        }, 'GET').catch(() => undefined).finally(() => pendingDetails.delete(key)));
+        }, 'GET').catch(() => cursor ? undefined : renderedDetail(id)).finally(() => pendingDetails.delete(key)));
       }
       return pendingDetails.get(key);
     },
