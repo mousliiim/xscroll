@@ -13,7 +13,9 @@ export function createRemoteRelay(host, getState, execute, routeDisplay) {
     if (!result || result.disabled) { session = undefined; return; }
     for (const value of result.commands || []) {
       const command = remoteCommand(value);
-      if (command) execute(command);
+      if (!command) continue;
+      try { execute(command); }
+      catch (error) { console.error('XScroll remote command failed.', error); }
     }
     const owner = host.ownerDocument.defaultView;
     current.owner = owner;

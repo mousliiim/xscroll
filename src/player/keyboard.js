@@ -4,6 +4,7 @@ const FOCUSABLE = 'button, input, a[href], [tabindex="0"]';
 
 export function handlePlayerKeys(event, { view, commands, floating }) {
   if ((floating && event.currentTarget === window) || event.metaKey || event.ctrlKey || event.altKey) return;
+  view.activity();
   const target = event.composedPath()[0];
   if (event.key === 'Escape' && view.dismissMenu(true)) {
     event.preventDefault();

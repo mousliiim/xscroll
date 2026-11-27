@@ -102,7 +102,10 @@ export function extractVideos(root) {
         key, tweetId: id, mediaIndex, screenRestricted, poster: mediaURL(media.media_url_https, 'pbs.twimg.com'),
         url: variants[0].url, variants, captionPlaylist: values.map(value => mediaURL(value?.url, 'video.twimg.com'))
           .find(url => /\.m3u8(?:\?|$)/i.test(url)), user: user.handle, userId: user.userId,
-        name: user.name, avatar: user.avatar, text, replyCount: stats.replyCount, stats,
+        name: user.name, avatar: user.avatar, text,
+        date: typeof legacy.created_at === 'string' ? legacy.created_at :
+          Number.isFinite(tweet.details?.created_at_ms) ? new Date(tweet.details.created_at_ms).toJSON() || '' : '',
+        replyCount: stats.replyCount, stats,
       });
     }
   }
@@ -128,6 +131,7 @@ export function acceptClips(values) {
       user: isHandle(value.user) ? value.user : '', name: typeof value.name === 'string' ? value.name.slice(0, 80) : '',
       poster: mediaURL(value.poster, 'pbs.twimg.com'), avatar: mediaURL(value.avatar, 'pbs.twimg.com'),
       text: typeof value.text === 'string' ? value.text.slice(0, 18000) : '',
+      date: typeof value.date === 'string' ? value.date.slice(0, 80) : '',
       replyCount: counter(value.replyCount), stats,
     });
   }

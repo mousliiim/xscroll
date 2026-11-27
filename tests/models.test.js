@@ -11,6 +11,7 @@ import { captionCues } from '../src/player/captions.js';
 const video = {
   rest_id: '1',
   legacy: {
+    created_at: 'Wed Nov 27 10:24:00 +0000 2026',
     full_text: 'One &amp; two https://t.co/abc',
     favorited: true, retweeted: false, bookmarked: false, favorite_count: 5,
     extended_entities: { media: [{ id_str: 'v1', video_info: { variants: [
@@ -27,6 +28,8 @@ test('normalizes playable media, avoids duplicate or untrusted media and retains
   assert.equal(clip.text, 'One & two');
   assert.equal(clip.stats.like, true);
   assert.equal(clip.stats.likeCount, 5);
+  assert.equal(clip.date, 'Wed Nov 27 10:24:00 +0000 2026');
+  assert.equal(acceptClips([clip])[0].date, clip.date);
   assert.deepEqual(clip.variants.map(value => value.label), ['720p', '360p']);
   assert.equal(acceptClips([{ ...clip, variants: [{ label: '720p', url: 'https://example.org/clip.mp4' }] }]).length, 0);
   assert.equal(pickVariant(clip, 'auto', 500).label, '360p');

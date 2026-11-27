@@ -38,6 +38,7 @@ test('validates live speed and momentary previews separately from discovery', ()
   assert.deepEqual(remoteCommand({ command: 'speed-preview', rate: null }), { command: 'speed-preview', rate: null });
   assert.equal(remoteCommand({ command: 'speed-preview', rate: 1.1 }), null);
   assert.equal(remoteCommand('replies-auto'), 'replies-auto');
+  assert.equal(remoteCommand('fullscreen-comments-pause'), 'fullscreen-comments-pause');
   assert.equal(remoteStatus({ autoReplies: true, rate: .55, rateTarget: 1.5 }).rateTarget, 1.5);
 });
 
@@ -61,21 +62,31 @@ test('validates remote playback settings and keeps comments bounded', () => {
   assert.deepEqual(remoteCommand({ command: 'volume', volume: .437 }), { command: 'volume', volume: .44 });
   assert.equal(remoteCommand({ command: 'volume', volume: 2 }), null);
   assert.deepEqual(remoteCommand({ command: 'comment-size', value: 125 }), { command: 'comment-size', value: 125 });
-  assert.equal(remoteCommand({ command: 'comment-size', value: 150 }), null);
+  assert.deepEqual(remoteCommand({ command: 'comment-size', value: 50 }), { command: 'comment-size', value: 50 });
+  assert.equal(remoteCommand({ command: 'comment-size', value: 145 }), null);
   assert.equal(remoteCommand({ command: 'comment-size', value: 83 }), null);
   assert.deepEqual(remoteCommand({ command: 'comment-transparency', value: 45 }), { command: 'comment-transparency', value: 45 });
-  assert.equal(remoteCommand({ command: 'comment-transparency', value: 70 }), null);
+  assert.deepEqual(remoteCommand({ command: 'comment-transparency', value: 90 }), { command: 'comment-transparency', value: 90 });
+  assert.equal(remoteCommand({ command: 'comment-transparency', value: 95 }), null);
   assert.equal(remoteCommand({ command: 'comment-transparency', value: 44 }), null);
+  assert.deepEqual(remoteCommand({ command: 'comment-speed', value: 125 }), { command: 'comment-speed', value: 125 });
+  assert.equal(remoteCommand({ command: 'comment-speed', value: 203 }), null);
+  assert.equal(remoteCommand({ command: 'comment-speed', value: 128 }), null);
+  assert.equal(remoteCommand('fullscreen-comments-pause'), 'fullscreen-comments-pause');
   assert.equal(remoteCommand({ command: 'phone-replies', open: 'yes' }), null);
   assert.deepEqual(remoteCommand({ command: 'phone-replies', open: true }), { command: 'phone-replies', open: true });
-  const state = remoteStatus({ ready: true, fullscreen: true, autoNext: true, fit: 'fill', captionsAvailable: true,
+  const state = remoteStatus({ ready: true, fullscreen: true, fullscreenCommentsPaused: true,
+    fullscreenCommentSpeed: 125, autoNext: true, fit: 'fill', captionsAvailable: true,
     comments: { id: '123', phase: 'ready', items: [{ id: '456', author: 'alice', text: 'x'.repeat(500) }, { id: 'bad', text: 'ignored' }] } });
   assert.equal(state.fullscreen, true);
   assert.equal(state.fullscreenCommentSize, 100);
   assert.equal(state.fullscreenCommentTransparency, 30);
-  const clampedCard = remoteStatus({ fullscreenCommentSize: 200, fullscreenCommentTransparency: 0 });
-  assert.equal(clampedCard.fullscreenCommentSize, 130);
-  assert.equal(clampedCard.fullscreenCommentTransparency, 5);
+  assert.equal(state.fullscreenCommentSpeed, 125);
+  assert.equal(state.fullscreenCommentsPaused, true);
+  const clampedCard = remoteStatus({ fullscreenCommentSize: 200, fullscreenCommentTransparency: 0, fullscreenCommentSpeed: 220 });
+  assert.equal(clampedCard.fullscreenCommentSize, 140);
+  assert.equal(clampedCard.fullscreenCommentTransparency, 0);
+  assert.equal(clampedCard.fullscreenCommentSpeed, 200);
   assert.equal(state.autoNext, true);
   assert.equal(state.fit, 'fill');
   assert.equal(state.comments.items.length, 1);

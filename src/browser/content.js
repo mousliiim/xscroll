@@ -66,6 +66,7 @@ function mount() {
     float: () => windowController.toggle(),
     fullscreen: () => windowController.fullscreen(),
     'fullscreen-comments': () => conversation.toggleFullscreenComments(),
+    'fullscreen-comments-pause': () => conversation.toggleFullscreenCommentsPause(),
     resize: name => windowController.resize(name),
     fit: value => windowController.fit(value),
     framing: () => windowController.toggleFit(),
@@ -120,6 +121,7 @@ function mount() {
     'replies-down': () => conversation.step(1),
     fullscreen: () => { void windowController.remoteFullscreen(); },
     'fullscreen-comments': () => conversation.toggleFullscreenComments(),
+    'fullscreen-comments-pause': () => conversation.toggleFullscreenCommentsPause(),
     fit: () => windowController.fit('contain'),
     fill: () => windowController.fit('fill'),
     'auto-next': () => deck.toggleAutoNext(),
@@ -172,6 +174,8 @@ function mount() {
       fullscreenComments: conversation.fullscreenComments(),
       fullscreenCommentSize: conversation.fullscreenCommentSize(),
       fullscreenCommentTransparency: conversation.fullscreenCommentTransparency(),
+      fullscreenCommentSpeed: conversation.fullscreenCommentSpeed(),
+      fullscreenCommentsPaused: conversation.fullscreenCommentsPaused(),
       autoNext: deck.autoNext(), captions: captions.enabled, captionsAvailable: captions.available, comments: conversation.phoneComments(),
       post: engagement ? { id: clip.tweetId, author: clip.user, ...engagement.stats, pending: [...engagement.pending] } : null,
       postResults: [...postResults.values()],
@@ -184,6 +188,7 @@ function mount() {
     };
   }, command => {
     if (!open) return;
+    view.activity();
     if (typeof command === 'string') remoteActions[command]?.();
     else if (command.command === 'speed') {
       clearPreviewLease();
@@ -192,6 +197,7 @@ function mount() {
     else if (command.command === 'volume') deck.setVolume(command.volume);
     else if (command.command === 'comment-size') conversation.setFullscreenCommentSize(command.value);
     else if (command.command === 'comment-transparency') conversation.setFullscreenCommentTransparency(command.value);
+    else if (command.command === 'comment-speed') conversation.setFullscreenCommentSpeed(command.value);
     else if (command.command === 'phone-replies') conversation.setPhoneOpen(command.open);
     else if (command.command === 'post-action') void applyPhonePostAction(command);
     else start(undefined, undefined, command);

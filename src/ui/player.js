@@ -4,6 +4,7 @@ import { button, choice, menu, menuButton, rateLabel, shortcuts } from './compon
 import { createOverlays } from './overlays.js';
 import { createRepliesView } from './replies.js';
 import { postURL } from '../x/model.js';
+import { createFullscreenIdle } from '../player/fullscreen-idle.js';
 import { createSpeedControls, speedPanel } from './speed-controls.js';
 import styles from './player.css';
 import brand from '../../static/icons/icon48.png';
@@ -31,12 +32,30 @@ export function createPlayerView(actions) {
           <div class="track" aria-label="Video feed">
             <div class="empty">${icon('reels')}<span role="status">Looking for unseen videos…</span><button type="button" class="button" data-action="retry" hidden>Find more</button></div>
           </div>
+          <aside class="fullscreen-post-caption" aria-label="Original video post" aria-hidden="true" inert hidden>
+            <div class="fullscreen-post-avatar" aria-hidden="true"><span></span><img alt="" hidden></div>
+            <div class="fullscreen-post-content">
+              <div class="fullscreen-post-heading">
+                <span class="fullscreen-post-label">Video description</span>
+                <time></time>
+              </div>
+              <strong class="fullscreen-post-author"></strong>
+              <span class="fullscreen-post-handle"></span>
+              <p class="fullscreen-post-text"></p>
+              <div class="fullscreen-post-stats">
+                <span class="fullscreen-post-stat" data-stat="like" aria-label="Likes">${icon('like')}<span data-count></span></span>
+                <span class="fullscreen-post-stat" data-stat="repost" aria-label="Reposts">${icon('repost')}<span data-count></span></span>
+                <span class="fullscreen-post-stat" data-stat="bookmark" aria-label="Bookmarks">${icon('bookmark')}<span data-count></span></span>
+              </div>
+            </div>
+          </aside>
           <aside class="fullscreen-comment" aria-label="On-screen comments" hidden>
             <header class="fullscreen-comment-head">
               <div class="fullscreen-comment-avatar"><span></span><img alt="" hidden></div>
               <div class="fullscreen-comment-identity"><strong></strong><span class="fullscreen-comment-handle"></span></div>
               <time></time>
             </header>
+            <span class="fullscreen-comment-paused" hidden>Paused</span>
             <p></p>
             <div class="fullscreen-comment-stats">
               <span class="fullscreen-comment-stat" data-stat="like" aria-label="Likes">${icon('like')}<span data-count></span></span>
@@ -61,6 +80,7 @@ export function createPlayerView(actions) {
               ${button('framing', 'Fill video frame (V)', 'Fit')}
               ${button('captions', 'Subtitles')}
               ${button('fullscreen-comments', 'Show on-screen comments', 'On-screen comments')}
+              ${button('fullscreen-comments-pause', 'Pause on-screen comments', 'Pause comments')}
               ${button('fullscreen', 'Fullscreen')}
             </div>
           </div>
@@ -154,6 +174,23 @@ export function createPlayerView(actions) {
   const answersButton = control('replies');
   const notice = get('.notice');
   const fullscreenComment = get('.fullscreen-comment');
+  const fullscreenCommentPausedLabel = get('.fullscreen-comment-paused');
+  const fullscreenPostCaption = get('.fullscreen-post-caption');
+  const fullscreenPostImage = get('.fullscreen-post-avatar img');
+  const fullscreenPostInitial = get('.fullscreen-post-avatar span');
+  const fullscreenPostAuthor = get('.fullscreen-post-author');
+  const fullscreenPostHandle = get('.fullscreen-post-handle');
+  const fullscreenPostTime = get('.fullscreen-post-heading time');
+  const fullscreenPostText = get('.fullscreen-post-text');
+  const fullscreenPostStats = Object.fromEntries(['like', 'repost', 'bookmark'].map(kind => [
+    kind, {
+      element: get(`.fullscreen-post-stat[data-stat="${kind}"]`),
+      count: get(`.fullscreen-post-stat[data-stat="${kind}"] [data-count]`),
+      key: `${kind}Count`,
+    },
+  ]));
+  const controls = get('.controls');
+  const fullscreenCommentPauseButton = control('fullscreen-comments-pause');
   const fullscreenCommentImage = get('.fullscreen-comment-avatar img');
   const fullscreenCommentInitial = get('.fullscreen-comment-avatar span');
   const fullscreenCommentName = get('.fullscreen-comment-identity strong');
@@ -178,9 +215,48 @@ export function createPlayerView(actions) {
   const menuTrigger = name => get(`[data-menu="${name}"]`);
   const counters = Object.fromEntries(['en', 'fr'].map(locale => [locale, new Intl.NumberFormat(locale, { notation: 'compact' })]));
   const countLabel = value => counters[language()].format(value);
+  let noticeTimer, commentExitTimer, qualityMarkup, fullscreenActive = false;
+  const fullscreenIdle = createFullscreenIdle({
+    onActivity() {
+      host.removeAttribute('data-fullscreen-idle');
+      controls.inert = false;
+      fullscreenPostCaption.classList.remove('is-idle');
+      fullscreenPostCaption.removeAttribute('aria-hidden');
+      fullscreenPostCaption.inert = false;
+      fullscreenPostCaption.hidden = !fullscreenActive || !fullscreenPostText.textContent;
+    },
+    onControlsIdle() {
+      if (controls.contains(shadow.activeElement)) {
+        fullscreenIdle.activity();
+        return;
+      }
+      dismissMenu();
+      host.setAttribute('data-fullscreen-idle', '');
+      controls.inert = true;
+    },
+    onPostIdle() {
+      fullscreenPostCaption.classList.add('is-idle');
+      fullscreenPostCaption.setAttribute('aria-hidden', 'true');
+      fullscreenPostCaption.inert = true;
+    },
+  });
+  const renderPostStats = stats => {
+    for (const { element, count, key } of Object.values(fullscreenPostStats)) {
+      const value = stats?.[key];
+      element.hidden = !Number.isSafeInteger(value) || value < 0;
+      count.textContent = Number.isSafeInteger(value) && value >= 0 ? countLabel(value) : '';
+    }
+  };
+  fullscreenPostImage.addEventListener('error', () => {
+    fullscreenPostImage.hidden = true;
+    fullscreenPostImage.removeAttribute('src');
+  });
+  for (const type of ['pointermove', 'pointerdown']) {
+    host.addEventListener(type, () => fullscreenIdle.activity(), { passive: true });
+  }
+  host.addEventListener('focusin', () => fullscreenIdle.activity());
   answersButton.setAttribute('aria-expanded', 'false');
   answersButton.setAttribute('aria-controls', 'thread');
-  let noticeTimer, qualityMarkup;
   const overlays = createOverlays(shadow, menuTrigger);
   const replies = createRepliesView(host, overlays, actions.more);
   const { show: showMenu, dismiss: dismissMenu, place: placeMenu, current: opened } = overlays;
@@ -271,6 +347,7 @@ export function createPlayerView(actions) {
     },
     stage: get('.stage'), float: control('float'), dismissMenu, placeMenu,
     focus: () => (shadow.fullscreenElement || shell).focus({ preventScroll: true }),
+    activity: () => fullscreenIdle.activity(),
     help: () => opened()?.name === 'help' ? dismissMenu(true) : showMenu('help', menuTrigger(shadow.fullscreenElement ? 'speed' : 'appearance')),
     menuFocusables: () => overlays.focusables(),
     appearance(theme, effective) {
@@ -353,6 +430,28 @@ export function createPlayerView(actions) {
       get('.thread-author').textContent = video?.user ? handle : '';
       get('.caption').textContent = video?.text || '';
       get('.caption').hidden = !video?.text;
+      fullscreenPostAuthor.textContent = video?.name || (video?.user ? `@${video.user}` : translate('Post on X'));
+      fullscreenPostHandle.textContent = video?.name && video?.user ? `@${video.user}` : '';
+      fullscreenPostInitial.textContent = (video?.name || video?.user || 'X').slice(0, 1).toUpperCase();
+      fullscreenPostImage.hidden = !video?.avatar;
+      if (video?.avatar && fullscreenPostImage.src !== video.avatar) fullscreenPostImage.src = video.avatar;
+      else if (!video?.avatar) fullscreenPostImage.removeAttribute('src');
+      const timestamp = video?.date && Date.parse(video.date);
+      fullscreenPostTime.hidden = !Number.isFinite(timestamp);
+      if (Number.isFinite(timestamp)) {
+        const date = new Date(timestamp);
+        fullscreenPostTime.dateTime = date.toISOString();
+        fullscreenPostTime.textContent = new Intl.DateTimeFormat(language(), {
+          dateStyle: 'medium', timeStyle: 'short',
+        }).format(date);
+      } else {
+        fullscreenPostTime.removeAttribute('datetime');
+        fullscreenPostTime.textContent = '';
+      }
+      fullscreenPostText.textContent = video?.text || '';
+      renderPostStats(video?.stats);
+      fullscreenPostCaption.hidden = !fullscreenActive || !video?.text;
+      if (fullscreenActive && video?.text) fullscreenIdle.activity();
       const count = video?.replyCount;
       text(answersButton.querySelector('span'), () => count > 0 ? countLabel(count) : translate('Replies'));
       attribute(answersButton, 'aria-label', () => count > 0 ? translate('Show {count} replies', { count: countLabel(count) }) : translate('Show replies'));
@@ -383,20 +482,52 @@ export function createPlayerView(actions) {
       text(control('float').querySelector('span'), active ? 'Return to tab' : 'Mini player');
     },
     full(active) {
+      fullscreenActive = active;
+      fullscreenIdle.setActive(active);
       fullscreenCommentButton.hidden = !active;
+      fullscreenCommentPauseButton.hidden = !active || fullscreenCommentButton.getAttribute('aria-pressed') !== 'true';
+      if (!active) {
+        host.removeAttribute('data-fullscreen-idle');
+        controls.inert = false;
+        fullscreenPostCaption.classList.remove('is-idle');
+        fullscreenPostCaption.setAttribute('aria-hidden', 'true');
+        fullscreenPostCaption.inert = true;
+      }
+      fullscreenPostCaption.hidden = !active || !fullscreenPostText.textContent;
       setControl('fullscreen', active ? 'shrink' : 'fullscreen', active ? 'Exit fullscreen' : 'Fullscreen');
     },
     fullscreenComments(enabled) {
       fullscreenCommentButton.setAttribute('aria-pressed', String(enabled));
+      fullscreenCommentPauseButton.hidden = !fullscreenActive || !enabled;
       setControl('fullscreen-comments', 'fullscreen-comments', enabled ? 'Hide on-screen comments' : 'Show on-screen comments');
+    },
+    fullscreenCommentPaused(paused) {
+      fullscreenCommentPauseButton.setAttribute('aria-pressed', String(paused));
+      fullscreenCommentPausedLabel.hidden = !paused;
+      const label = paused ? 'Resume on-screen comments' : 'Pause on-screen comments';
+      setControl('fullscreen-comments-pause', paused ? 'play' : 'pause', label);
+      text(fullscreenCommentPauseButton.querySelector('span'), paused ? 'Resume comments' : 'Pause comments');
     },
     fullscreenCommentStyle(size, transparency) {
       fullscreenComment.style.setProperty('--comment-scale', String(size / 100));
       fullscreenComment.style.setProperty('--comment-opacity', String(1 - transparency / 100));
     },
     fullscreenComment(reply) {
-      fullscreenComment.hidden = !reply;
-      if (!reply) return;
+      clearTimeout(commentExitTimer);
+      if (!reply) {
+        if (fullscreenComment.hidden) return;
+        fullscreenComment.classList.remove('is-entering');
+        fullscreenComment.classList.add('is-leaving');
+        commentExitTimer = setTimeout(() => {
+          fullscreenComment.hidden = true;
+          fullscreenComment.classList.remove('is-leaving');
+        }, 240);
+        return;
+      }
+      fullscreenComment.classList.remove('is-leaving', 'is-entering');
+      fullscreenComment.hidden = false;
+      void fullscreenComment.offsetWidth;
+      fullscreenComment.classList.add('is-entering');
       fullscreenCommentName.textContent = reply.name || (reply.handle ? '@' + reply.handle : translate('X user'));
       fullscreenCommentHandle.textContent = reply.name && reply.handle ? `@${reply.handle}` : '';
       fullscreenCommentInitial.textContent = (reply.name || reply.handle || 'X').slice(0, 1).toUpperCase();
@@ -449,6 +580,7 @@ export function createPlayerView(actions) {
     },
 
     engagement(record) {
+      renderPostStats(record?.stats);
       for (const [kind, verb, inverse, plain] of [
         ['like', 'Like', 'Unlike', 'Like'],
         ['repost', 'Repost', 'Undo repost', 'Repost'],

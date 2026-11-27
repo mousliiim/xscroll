@@ -45,6 +45,7 @@ const icons = {
   shrink: shrinkIcon,
   replies: repliesIcon,
   'fullscreen-comments': repliesIcon,
+  'fullscreen-comments-pause': pauseIcon,
   external: externalIcon,
   quality: qualityIcon,
   appearance: appearanceIcon,

@@ -15,38 +15,63 @@ export function createConversation({ client, view, postActions, currentVideo, al
   let phoneOpen = false, phoneOffset = 0;
   let automatic = readSetting('auto-replies', 'false') === 'true';
   let overlayEnabled = readSetting('fullscreen-comments', 'false') === 'true';
-  let overlaySize = settingValue('fullscreen-comment-size', 100, 80, 130);
-  let overlayTransparency = settingValue('fullscreen-comment-transparency', 30, 5, 65);
-  let fullscreen = false, overlayTimer, repliesShownBeforePage = 0;
+  let overlaySize = settingValue('fullscreen-comment-size', 100, 50, 140);
+  let overlayTransparency = settingValue('fullscreen-comment-transparency', 30, 0, 90);
+  let overlaySpeed = settingValue('fullscreen-comment-speed', 75, 25, 200);
+  let fullscreen = false, overlayPaused = false, overlayTimer, overlayDeadline = 0;
+  let overlayRemaining = 0, overlayTask, overlaySpeedSensitive = false, repliesShownBeforePage = 0;
   const shownComments = new Set();
   let openOnFirstClip = automatic;
   view.fullscreenComments(overlayEnabled);
   view.fullscreenCommentStyle(overlaySize, overlayTransparency);
+  view.fullscreenCommentPaused(overlayPaused);
 
   const showingOverlay = () => fullscreen && overlayEnabled && Boolean(clipId);
+
+  function scheduleOverlay(task, duration, speedSensitive = false) {
+    clearTimeout(overlayTimer);
+    overlayTimer = undefined;
+    overlayTask = task;
+    overlaySpeedSensitive = speedSensitive;
+    overlayRemaining = Math.max(0, duration);
+    overlayDeadline = performance.now() + overlayRemaining;
+    if (overlayPaused) return;
+    overlayTimer = setTimeout(() => {
+      overlayTimer = undefined;
+      const next = overlayTask;
+      overlayTask = undefined;
+      overlayRemaining = 0;
+      overlayDeadline = 0;
+      overlaySpeedSensitive = false;
+      next?.();
+    }, overlayRemaining);
+  }
 
   function clearOverlay() {
     clearTimeout(overlayTimer);
     overlayTimer = undefined;
+    overlayTask = undefined;
+    overlayRemaining = overlayDeadline = 0;
+    overlaySpeedSensitive = false;
+    overlayPaused = false;
     repliesShownBeforePage = 0;
     shownComments.clear();
     view.fullscreenComment();
+    view.fullscreenCommentPaused(overlayPaused);
   }
 
   function showNextComment() {
-    if (!showingOverlay() || overlayTimer !== undefined) return;
+    if (!showingOverlay() || overlayPaused || overlayTask) return;
     const thread = threadFor(clipId);
     for (const reply of thread.items.values()) {
       if (!reply.text.trim() || shownComments.has(reply.id)) continue;
       shownComments.add(reply.id);
       view.fullscreenComment(reply);
-      overlayTimer = setTimeout(() => {
+      const duration = Math.min(18000, 6500 + reply.text.length * 25) * 100 / overlaySpeed;
+      scheduleOverlay(() => {
         view.fullscreenComment();
-        overlayTimer = setTimeout(() => {
-          overlayTimer = undefined;
-          showNextComment();
-        }, 650);
-      }, Math.min(9500, 4800 + reply.text.length * 13));
+        scheduleOverlay(showNextComment, 320);
+      }, duration, true);
       return;
     }
     if (thread.loading || thread.failed) return;
@@ -84,7 +109,16 @@ export function createConversation({ client, view, postActions, currentVideo, al
     const cursor = thread.cursor;
     thread.loading = true;
     if (open) renderStatus(thread);
-    const data = await client.detail(id, cursor);
+    let data;
+    try {
+      data = await client.detail(id, cursor);
+    } catch {
+      thread.loading = false;
+      thread.failed = true;
+      if (open && currentId === id && threads.get(id) === thread) renderStatus(thread);
+      else if (clipId === id && showingOverlay()) view.message('Couldn’t load replies from X.');
+      return;
+    }
     const page = extractReplies(data, id, thread.items);
     const tweet = findPost(data, id);
     if (tweet) postActions.merge(id, postStats(tweet));
@@ -149,17 +183,43 @@ export function createConversation({ client, view, postActions, currentVideo, al
     fullscreenComments: () => overlayEnabled,
     fullscreenCommentSize: () => overlaySize,
     fullscreenCommentTransparency: () => overlayTransparency,
+    fullscreenCommentSpeed: () => overlaySpeed,
+    fullscreenCommentsPaused: () => overlayPaused,
     setFullscreenCommentSize(value) {
-      if (!Number.isInteger(value) || (value - 80) % 5 !== 0 || value < 80 || value > 130) return;
+      if (!Number.isInteger(value) || (value - 50) % 5 !== 0 || value < 50 || value > 140) return;
       overlaySize = value;
       saveSetting('fullscreen-comment-size', String(overlaySize));
-      view.fullscreenCommentStyle(overlaySize, overlayOpacity);
+      view.fullscreenCommentStyle(overlaySize, overlayTransparency);
     },
     setFullscreenCommentTransparency(value) {
-      if (!Number.isInteger(value) || (value - 5) % 5 !== 0 || value < 5 || value > 65) return;
+      if (!Number.isInteger(value) || value % 5 !== 0 || value < 0 || value > 90) return;
       overlayTransparency = value;
       saveSetting('fullscreen-comment-transparency', String(overlayTransparency));
       view.fullscreenCommentStyle(overlaySize, overlayTransparency);
+    },
+    setFullscreenCommentSpeed(value) {
+      if (!Number.isInteger(value) || (value - 25) % 5 !== 0 || value < 25 || value > 200) return;
+      const previousSpeed = overlaySpeed;
+      overlaySpeed = value;
+      saveSetting('fullscreen-comment-speed', String(overlaySpeed));
+      if (overlayTask && overlaySpeedSensitive) {
+        const remaining = overlayTimer === undefined ? overlayRemaining :
+          Math.max(0, overlayDeadline - performance.now());
+        scheduleOverlay(overlayTask, remaining * previousSpeed / overlaySpeed, true);
+      }
+    },
+    toggleFullscreenCommentsPause() {
+      if (!showingOverlay()) return;
+      overlayPaused = !overlayPaused;
+      if (overlayPaused) {
+        if (overlayTimer !== undefined) {
+          overlayRemaining = Math.max(0, overlayDeadline - performance.now());
+          clearTimeout(overlayTimer);
+          overlayTimer = undefined;
+        }
+      } else if (overlayTask) scheduleOverlay(overlayTask, overlayRemaining, overlaySpeedSensitive);
+      else showNextComment();
+      view.fullscreenCommentPaused(overlayPaused);
     },
     toggleFullscreenComments() {
       overlayEnabled = !overlayEnabled;

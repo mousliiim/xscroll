@@ -110,7 +110,9 @@
         <p id="post-feedback" class="feedback" role="status"></p>
       </section>
 
-      <section class="card replies-card" aria-label="Réponses">
+      <section class="card replies-card" aria-label="Réponses dans le lecteur">
+        <div class="module-heading"><h2>Réponses dans le lecteur</h2></div>
+        <p class="section-help">Panneau de réponses et défilement auto dans le lecteur ; indépendants des commentaires superposés en plein écran.</p>
         <div class="reply-controls">
           <button type="button" data-command="replies" aria-pressed="false"><span>Réponses</span><small class="reply-toggle-label">Afficher</small></button>
           <button type="button" data-command="replies-up" aria-label="Remonter dans les réponses"><svg aria-hidden="true"><use href="#arrow-up"/></svg><small>Haut</small></button>
@@ -148,16 +150,21 @@
             </div>
           </fieldset>
           <fieldset class="setting-group">
-            <legend>Commentaires à l’écran</legend>
+            <legend>Commentaires superposés · plein écran</legend>
             <p id="fullscreen-comments-hint">Affiche les réponses par-dessus la vidéo en plein écran.</p>
             <button type="button" data-command="fullscreen-comments" aria-pressed="false">Afficher les commentaires</button>
+            <button type="button" data-command="fullscreen-comments-pause" aria-pressed="false" disabled>Mettre en pause</button>
             <div class="range-setting">
               <div><label for="comment-size">Taille de la carte</label><output id="comment-size-output" for="comment-size">100 %</output></div>
-              <input id="comment-size" type="range" min="80" max="130" step="5" value="100" aria-label="Taille de la carte des commentaires" disabled>
+              <input id="comment-size" type="range" min="50" max="140" step="5" value="100" aria-label="Taille de la carte des commentaires" disabled>
             </div>
             <div class="range-setting">
               <div><label for="comment-transparency">Transparence</label><output id="comment-transparency-output" for="comment-transparency">30 %</output></div>
-              <input id="comment-transparency" type="range" min="5" max="65" step="5" value="30" aria-label="Transparence de la carte des commentaires" disabled>
+              <input id="comment-transparency" type="range" min="0" max="90" step="5" value="30" aria-label="Transparence de la carte des commentaires" disabled>
+            </div>
+            <div class="range-setting">
+              <div><label for="comment-speed">Vitesse des commentaires</label><output id="comment-speed-output" for="comment-speed">0,75×</output></div>
+              <input id="comment-speed" type="range" min="25" max="200" step="5" value="75" aria-label="Vitesse d’affichage des commentaires" disabled>
             </div>
           </fieldset>
           <fieldset class="setting-group">

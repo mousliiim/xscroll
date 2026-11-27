@@ -3,7 +3,7 @@ export const REMOTE_ORIGIN = 'http://127.0.0.1:4781';
 export const REMOTE_PERMISSION = 'http://127.0.0.1/*';
 export const MAX_TOPIC_LENGTH = 120;
 
-const playback = new Set(['previous', 'next', 'toggle-play', 'toggle-mute', 'rewind', 'forward', 'slower', 'faster', 'reset-speed', 'replies', 'replies-auto', 'replies-up', 'replies-down', 'fullscreen', 'fullscreen-comments', 'fit', 'fill', 'auto-next', 'captions', 'phone-replies-more']);
+const playback = new Set(['previous', 'next', 'toggle-play', 'toggle-mute', 'rewind', 'forward', 'slower', 'faster', 'reset-speed', 'replies', 'replies-auto', 'replies-up', 'replies-down', 'fullscreen', 'fullscreen-comments', 'fullscreen-comments-pause', 'fit', 'fill', 'auto-next', 'captions', 'phone-replies-more']);
 export const POST_ACTIONS = ['like', 'bookmark', 'repost'];
 const postId = value => typeof value === 'string' && /^\d{1,25}$/.test(value);
 const requestId = value => typeof value === 'string' && /^[a-f0-9]{16}$/.test(value);
@@ -27,8 +27,9 @@ export function remoteCommand(value) {
   if (value?.command === 'phone-replies') {
     return typeof value.open === 'boolean' ? { command: 'phone-replies', open: value.open } : null;
   }
-  if (value?.command === 'comment-size' || value?.command === 'comment-transparency') {
-    const [minimum, maximum] = value.command === 'comment-size' ? [80, 130] : [5, 65];
+  if (['comment-size', 'comment-transparency', 'comment-speed'].includes(value?.command)) {
+    const [minimum, maximum] = value.command === 'comment-size' ? [50, 140] :
+      value.command === 'comment-transparency' ? [0, 90] : [25, 200];
     return Number.isInteger(value.value) && value.value >= minimum && value.value <= maximum && (value.value - minimum) % 5 === 0 ?
       { command: value.command, value: value.value } : null;
   }
@@ -70,8 +71,10 @@ export function remoteStatus(value) {
     autoNext: value?.autoNext === true,
     fullscreen: value?.fullscreen === true,
     fullscreenComments: value?.fullscreenComments === true,
-    fullscreenCommentSize: settingPercent(value?.fullscreenCommentSize, 80, 130, 100),
-    fullscreenCommentTransparency: settingPercent(value?.fullscreenCommentTransparency, 5, 65, 30),
+    fullscreenCommentSize: settingPercent(value?.fullscreenCommentSize, 50, 140, 100),
+    fullscreenCommentTransparency: settingPercent(value?.fullscreenCommentTransparency, 0, 90, 30),
+    fullscreenCommentSpeed: settingPercent(value?.fullscreenCommentSpeed, 25, 200, 75),
+    fullscreenCommentsPaused: value?.fullscreenCommentsPaused === true,
     fullscreenFailed: value?.fullscreenFailed === true,
     fit: value?.fit === 'fill' ? 'fill' : 'contain',
     captions: value?.captions === true,

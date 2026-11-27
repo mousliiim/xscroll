@@ -28,6 +28,8 @@ const commentSize = find('#comment-size');
 const commentSizeOutput = find('#comment-size-output');
 const commentTransparency = find('#comment-transparency');
 const commentTransparencyOutput = find('#comment-transparency-output');
+const commentSpeed = find('#comment-speed');
+const commentSpeedOutput = find('#comment-speed-output');
 const playbackDialog = find('#playback-dialog');
 const fullscreenCommentsHint = find('#fullscreen-comments-hint');
 const captionHint = find('#caption-hint');
@@ -177,6 +179,8 @@ function renderControls() {
   remoteVolume.disabled = !playable;
   commentSize.disabled = !playable;
   commentTransparency.disabled = !playable;
+  commentSpeed.disabled = !playable;
+  buttons.get('fullscreen-comments-pause').disabled = !playable;
   openComments.disabled = !playable || !post?.id;
   buttons.get('captions').disabled = !playable || !captionsAvailable;
   hint.hidden = !paired || available;
@@ -231,14 +235,17 @@ function drawVolume(value) {
   attribute(remoteVolume, 'aria-valuetext', () => new Intl.NumberFormat(language(), { style: 'percent' }).format(value / 100));
 }
 
-function drawCommentSettings(size, transparency) {
+function drawCommentSettings(size, transparency, speed) {
   const percent = value => new Intl.NumberFormat(language(), { style: 'percent', maximumFractionDigits: 0 }).format(value / 100);
   commentSize.value = size;
   commentTransparency.value = transparency;
+  commentSpeed.value = speed;
   write(commentSizeOutput, percent(size));
   write(commentTransparencyOutput, percent(transparency));
+  write(commentSpeedOutput, speedLabel(speed / 100));
   attribute(commentSize, 'aria-valuetext', percent(size));
   attribute(commentTransparency, 'aria-valuetext', percent(transparency));
+  attribute(commentSpeed, 'aria-valuetext', speedLabel(speed / 100));
 }
 
 function render(result) {
@@ -265,7 +272,8 @@ function render(result) {
   if (!result.state) return;
   const { paused, muted, rate, rateTarget, replies, autoReplies } = result.state;
   if (Date.now() >= commentSettingsEditingUntil) {
-    drawCommentSettings(result.state.fullscreenCommentSize, result.state.fullscreenCommentTransparency);
+    drawCommentSettings(result.state.fullscreenCommentSize, result.state.fullscreenCommentTransparency,
+      result.state.fullscreenCommentSpeed);
   }
   const play = buttons.get('toggle-play');
   play.querySelector('use').setAttribute('href', paused ? '#play' : '#pause');
@@ -282,6 +290,10 @@ function render(result) {
   })) buttons.get(command).setAttribute('aria-pressed', String(Boolean(selected)));
   fullscreenCommentsHint.hidden = result.state.fullscreen === true;
   write(buttons.get('fullscreen'), result.state.fullscreen ? 'Quitter le plein écran' : 'Plein écran du lecteur');
+  const pauseComments = buttons.get('fullscreen-comments-pause');
+  pauseComments.disabled = !playable || !result.state.fullscreen || !result.state.fullscreenComments;
+  pauseComments.setAttribute('aria-pressed', String(result.state.fullscreenCommentsPaused));
+  write(pauseComments, result.state.fullscreenCommentsPaused ? 'Reprendre les commentaires' : 'Mettre en pause');
   captionHint.hidden = captionsAvailable;
   write(playbackFeedback, result.state.fullscreenFailed ? 'Le plein écran est indisponible.' : '');
   const repliesButton = buttons.get('replies');
@@ -408,7 +420,7 @@ form.addEventListener('submit', async event => {
 
 async function send(command, options) {
   const subject = options?.topic;
-  const adjustment = ['speed', 'speed-preview', 'volume', 'comment-size', 'comment-transparency'].includes(command);
+  const adjustment = ['speed', 'speed-preview', 'volume', 'comment-size', 'comment-transparency', 'comment-speed'].includes(command);
   const discovering = command === 'shuffle' || command === 'search';
   if (discovering ? !available || discoverySending : command === 'phone-replies' ? !available : !playable) return;
   if (discovering) {
@@ -454,7 +466,9 @@ function scheduleRate() {
     pendingRates.delete(command);
     speedInFlight = true;
     nextRateAt = performance.now() + 100;
-    try { await send(command, command === 'volume' ? { volume: rate } : { rate }); }
+    const options = command === 'volume' ? { volume: rate } :
+      command.startsWith('comment-') ? { value: rate } : { rate };
+    try { await send(command, options); }
     finally {
       speedInFlight = false;
       scheduleRate();
@@ -484,11 +498,12 @@ remoteVolume.addEventListener('input', () => {
 function changeCommentSetting(input, command) {
   const value = input.valueAsNumber;
   commentSettingsEditingUntil = Date.now() + 1800;
-  drawCommentSettings(commentSize.valueAsNumber, commentTransparency.valueAsNumber);
-  void send(command, { value });
+  drawCommentSettings(commentSize.valueAsNumber, commentTransparency.valueAsNumber, commentSpeed.valueAsNumber);
+  queueRate(command, value);
 }
 commentSize.addEventListener('input', () => changeCommentSetting(commentSize, 'comment-size'));
 commentTransparency.addEventListener('input', () => changeCommentSetting(commentTransparency, 'comment-transparency'));
+commentSpeed.addEventListener('input', () => changeCommentSetting(commentSpeed, 'comment-speed'));
 
 const releaseHold = bindHold(previews, button => {
   const rate = Number(button.dataset.previewRate);

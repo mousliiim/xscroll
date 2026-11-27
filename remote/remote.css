@@ -205,6 +205,8 @@ label { display: inline-block; margin-bottom: 7px; color: #ddd; font-size: 13px;
 .speed-actions [data-preview-rate] > * { pointer-events: none; }
 .speed-actions button[data-held] { border-color: var(--preview-accent); background: #303030; }
 .reply-controls { grid-template-columns: minmax(0, 1.42fr) repeat(2, minmax(44px, .75fr)) minmax(0, 1.2fr); }
+.replies-card .module-heading { margin-bottom: 3px; }
+.replies-card .section-help { margin: 0 0 8px; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .reply-controls button svg { width: 16px; height: 16px; }
 .reply-controls [data-command="replies-auto"] { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; }
 .switch-dot { width: 7px; height: 7px; border-radius: 50%; background: #777; flex: none; }
@@ -237,6 +239,7 @@ label { display: inline-block; margin-bottom: 7px; color: #ddd; font-size: 13px;
 #player .remote-dialog h2 { font-size: 17px; }
 .remote-dialog .module-heading { margin-bottom: 12px; }
 .remote-dialog .module-heading button { min-width: 44px; }
+#playback-dialog .dialog-body { max-height: calc(100dvh - 130px); overflow: auto; overscroll-behavior: contain; }
 .screen-body, .dialog-body { display: grid; gap: 9px; }
 .setting-group { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
 .setting-group legend { padding-inline: 5px; color: #e4e4e4; font-size: 13px; font-weight: 700; }
