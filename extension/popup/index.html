@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>XScroll</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <img src="../icons/icon48.png" alt="" width="44" height="44">
+    <div><h1><img class="wordmark" src="../icons/wordmark.png" alt="XScroll"></h1><p>Video player for X</p></div>
+  </header>
+  <main>
+    <p id="status" role="status">Checking this tab…</p>
+    <button id="launch" type="button" disabled>Open player
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></svg>
+    </button>
+  </main>
+  <section class="remote" id="remote-panel" hidden>
+    <button type="button" id="remote-toggle" class="secondary">Phone remote</button>
+    <p id="remote-info" role="status" hidden></p>
+    <ul id="remote-urls" hidden></ul>
+  </section>
+  <footer><kbd>?</kbd> Keyboard shortcuts in the player</footer>
+  <script src="popup.js"></script>
+</body>
+</html>

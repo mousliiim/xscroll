@@ -1,0 +1,24 @@
+{
+  "name": "xscroll",
+  "version": "1.6.0",
+  "private": true,
+  "type": "module",
+  "description": "Floating video player and post companion for X",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test",
+    "package": "node tools/build.mjs --zip",
+    "remote": "node remote/server.mjs"
+  },
+  "dependencies": {
+    "@floating-ui/dom": "1.8.0",
+    "lucide-static": "1.81.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

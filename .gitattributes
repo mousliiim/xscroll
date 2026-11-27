@@ -1,0 +1,6 @@
+* text=auto
+*.png binary
+*.webp binary
+*.zip binary
+extension/** linguist-generated=true
+*.gif binary

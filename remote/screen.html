@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b0b0b">
+  <title>XScroll · Écran</title>
+  <link rel="icon" href="/icon.png">
+  <link rel="stylesheet" href="/screen.css">
+  <script src="/screen.js" type="module"></script>
+</head>
+<body>
+  <main id="lobby" aria-labelledby="lobby-title">
+    <div class="lobby-card">
+      <div class="brand"><img src="/icon.png" width="41" height="41" alt="">XScroll</div>
+      <h1 id="lobby-title">Connecter cet écran</h1>
+      <p id="lobby-help">Ouvre <strong>Écran externe</strong> dans la télécommande sur ton téléphone, puis saisis ce code.</p>
+      <output id="screen-code" aria-label="Code de l’écran"></output>
+      <p id="lobby-status" role="status"></p>
+      <button type="button" id="new-code" hidden>Nouveau code</button>
+    </div>
+  </main>
+
+  <main id="viewer" aria-label="Lecteur sur écran externe" hidden>
+    <video id="display-video" playsinline muted loop preload="auto"></video>
+    <div class="wait" id="wait" role="status" hidden></div>
+    <div class="overlay">
+      <article id="caption" class="post-card" aria-label="Publication X" hidden>
+        <div class="caption-head">
+          <div class="caption-avatar" aria-hidden="true"><span id="avatar-letter">X</span><img id="author-avatar" alt="" hidden></div>
+          <div class="caption-identity"><strong id="author-name"></strong><p id="author"></p></div>
+        </div>
+        <p id="text"></p>
+      </article>
+      <div class="tools">
+        <button type="button" id="screen-audio" aria-pressed="false">Activer le son</button>
+        <button type="button" id="fullscreen">Plein écran</button>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
