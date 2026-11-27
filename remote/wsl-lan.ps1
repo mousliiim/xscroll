@@ -12,6 +12,10 @@ $mappingName = "$LanAddress/$Port"
 $destination = "$WslAddress/$Port"
 $newRule = $false
 
+function Test-LanListener {
+  return [bool](Get-NetTCPConnection -LocalAddress $LanAddress -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+}
+
 try {
   $address = Get-NetIPAddress -IPAddress $LanAddress -AddressFamily IPv4 | Select-Object -First 1
   $network = Get-NetConnectionProfile -InterfaceIndex $address.InterfaceIndex
@@ -46,6 +50,13 @@ try {
     Set-NetFirewallRule -Name $ruleName @ruleOptions | Out-Null
   }
 
+  if ($existing -and $rule.Description -eq $binding -and !(Test-LanListener)) {
+    # After a reboot, a saved PortProxy entry can exist without a TCP listener.
+    $result = & netsh interface portproxy delete v4tov4 "listenaddress=$LanAddress" "listenport=$Port"
+    if ($LASTEXITCODE -ne 0) { throw "Windows could not refresh the XScroll forwarding rule. $result" }
+    $existing = $null
+  }
+
   if ($existing -ne $destination) {
     $action = if ($existing) { 'set' } else { 'add' }
     $result = & netsh interface portproxy $action v4tov4 "listenaddress=$LanAddress" "listenport=$Port" "connectaddress=$WslAddress" "connectport=$Port"
@@ -54,6 +65,10 @@ try {
       throw "Windows could not forward port $Port. $result"
     }
   }
+  for ($attempt = 0; $attempt -lt 10 -and !(Test-LanListener); $attempt++) {
+    Start-Sleep -Milliseconds 250
+  }
+  if (!(Test-LanListener)) { throw "Windows is not listening on ${LanAddress}:${Port}." }
   Write-Host "XScroll LAN is ready at http://${LanAddress}:${Port}/"
 } catch {
   if ($newRule) { Remove-NetFirewallRule -Name $ruleName -ErrorAction SilentlyContinue -ErrorVariable ignored }
