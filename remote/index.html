@@ -25,6 +25,7 @@
     <symbol id="bookmark" viewBox="0 0 24 24"><path d="M6 20V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v15l-6-4Z"/></symbol>
     <symbol id="repost" viewBox="0 0 24 24"><path d="m2 8 4-4 4 4M6 4v12a2 2 0 0 0 2 2h4m10-2-4 4-4-4m4 4V8a2 2 0 0 0-2-2h-4"/></symbol>
     <symbol id="screen" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></symbol>
+    <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
   </svg>
   <main class="shell">
     <header class="topbar">
@@ -33,6 +34,7 @@
         <span class="connection-icon" aria-hidden="true"><svg><use href="#wait-status"/></svg></span>
         <span class="connection-label">Connexion…</span>
       </p>
+      <select id="remote-language" class="language-select" aria-label="Langue"><option value="en" lang="en">EN</option><option value="fr" lang="fr">FR</option></select>
     </header>
 
     <section id="pairing" class="pairing">
@@ -51,10 +53,8 @@
     </section>
 
     <section id="player" aria-labelledby="player-title" hidden>
-      <div class="player-heading">
-        <h1 id="player-title">Télécommande</h1>
-        <p id="player-hint" class="player-hint" hidden>Ouvre le lecteur XScroll sur ton ordinateur.</p>
-      </div>
+      <h1 id="player-title" class="visually-hidden">Télécommande</h1>
+      <p id="player-hint" class="player-hint" hidden>Ouvre le lecteur XScroll sur ton ordinateur.</p>
       <section class="card transport-card" aria-label="Lecture">
         <div class="transport">
           <button type="button" data-command="previous"><svg aria-hidden="true"><use href="#arrow-up"/></svg>Précédente</button>
@@ -65,6 +65,22 @@
           <button type="button" data-command="rewind">−5 s</button>
           <button type="button" data-command="toggle-mute" aria-pressed="false">Son</button>
           <button type="button" data-command="forward">+5 s</button>
+        </div>
+      </section>
+
+      <section class="card speed-card" aria-labelledby="speed-title">
+        <div class="speed-row">
+          <h2 id="speed-title">Vitesse</h2>
+          <div class="speed-track" data-rate="normal">
+            <input type="range" id="speed-range" min=".25" max="2" step=".01" value="1" aria-label="Vitesse de lecture" disabled>
+            <div class="speed-ruler" aria-hidden="true"></div>
+          </div>
+          <output id="speed-output" for="speed-range">1×</output>
+        </div>
+        <div class="speed-actions" role="group" aria-label="Variations de vitesse">
+          <button type="button" data-preview-rate=".5" aria-label="Maintenir pour ralentir à 0,5×" disabled><span>½×</span> Ralenti</button>
+          <button type="button" data-command="reset-speed" aria-label="Remettre la vitesse à 1×">1×</button>
+          <button type="button" data-preview-rate="2" aria-label="Maintenir pour accélérer à 2×" disabled><span>2×</span> Boost</button>
         </div>
       </section>
 
@@ -81,50 +97,37 @@
         <p id="post-feedback" class="feedback" role="status"></p>
       </section>
 
-      <section class="card speed-card" aria-labelledby="speed-title">
-        <div class="module-heading">
-          <h2 id="speed-title">Vitesse</h2>
-          <output id="speed-output" for="speed-range">1×</output>
-        </div>
-        <div class="speed-track" data-rate="normal">
-          <input type="range" id="speed-range" min=".25" max="2" step=".01" value="1" aria-label="Vitesse de lecture" disabled>
-          <div class="speed-ruler" aria-hidden="true"></div>
-        </div>
-        <div class="speed-actions" role="group" aria-label="Variations de vitesse">
-          <button type="button" data-preview-rate=".5" aria-label="Maintenir pour ralentir à 0,5×" disabled><span>½×</span> Ralenti</button>
-          <button type="button" data-command="reset-speed" aria-label="Remettre la vitesse à 1×">1×</button>
-          <button type="button" data-preview-rate="2" aria-label="Maintenir pour accélérer à 2×" disabled><span>2×</span> Boost</button>
-        </div>
-      </section>
-
-      <section class="card replies-card" aria-labelledby="replies-title">
-        <div class="module-heading">
-          <h2 id="replies-title">Réponses</h2>
-          <button type="button" data-command="replies" aria-pressed="false">Afficher</button>
-        </div>
+      <section class="card replies-card" aria-label="Réponses">
         <div class="reply-controls">
+          <button type="button" data-command="replies" aria-pressed="false">Réponses</button>
           <button type="button" data-command="replies-up" aria-label="Remonter dans les réponses"><svg aria-hidden="true"><use href="#arrow-up"/></svg></button>
-          <button type="button" data-command="replies-auto" aria-pressed="false"><span class="switch-dot" aria-hidden="true"></span>Défilement auto</button>
           <button type="button" data-command="replies-down" aria-label="Descendre dans les réponses"><svg aria-hidden="true"><use href="#arrow-down"/></svg></button>
+          <button type="button" data-command="replies-auto" aria-label="Défilement auto" aria-pressed="false"><span class="switch-dot" aria-hidden="true"></span>Auto</button>
         </div>
       </section>
 
       <section class="card discover-card" aria-labelledby="discover-title">
-        <div class="module-heading">
-          <h2 id="discover-title">Découvrir</h2>
+        <h2 id="discover-title">Découvrir</h2>
+        <div class="discover-controls">
+          <form id="search">
+            <label class="visually-hidden" for="topic">Fil par sujet</label>
+            <div class="search-field">
+              <input id="topic" name="topic" type="search" maxlength="120" placeholder="Fil par sujet" enterkeyhint="search" autocomplete="off" required disabled>
+              <button type="submit" class="primary" aria-label="Chercher des vidéos" disabled><svg aria-hidden="true"><use href="#arrow-right"/></svg></button>
+            </div>
+          </form>
           <button type="button" id="shuffle" disabled><svg aria-hidden="true"><use href="#shuffle-icon"/></svg>Au hasard</button>
         </div>
-        <form id="search">
-          <label for="topic">Fil par sujet</label>
-          <div class="search-field">
-            <input id="topic" name="topic" type="search" maxlength="120" placeholder="Ex. photo de rue" enterkeyhint="search" autocomplete="off" required disabled>
-            <button type="submit" class="primary" aria-label="Chercher des vidéos" disabled><svg aria-hidden="true"><use href="#arrow-right"/></svg></button>
-          </div>
-        </form>
         <p id="discover-status" class="feedback" role="status"></p>
       </section>
-      <details class="card screen-card">
-        <summary><span><svg aria-hidden="true"><use href="#screen"/></svg>Écran externe</span><span id="screen-badge"></span></summary>
+      <button type="button" class="screen-trigger" id="open-screen" aria-haspopup="dialog">
+        <svg aria-hidden="true"><use href="#screen"/></svg><span>Écran externe</span><span id="screen-badge"></span>
+      </button>
+      <dialog class="card screen-dialog" id="screen-dialog" aria-labelledby="screen-title">
+        <div class="module-heading">
+          <h2 id="screen-title">Écran externe</h2>
+          <form method="dialog"><button type="submit" aria-label="Fermer" autofocus><svg aria-hidden="true"><use href="#close"/></svg></button></form>
+        </div>
         <div class="screen-body">
           <p>Ouvre ce lien dans le navigateur de l’autre écran.</p>
           <div class="screen-link-row">
@@ -141,13 +144,9 @@
           <button type="button" id="disconnect-screen" hidden>Arrêter la diffusion</button>
           <p id="screen-feedback" class="feedback" role="status"></p>
         </div>
-      </details>
+      </dialog>
       <p id="notice" class="feedback" role="status"></p>
     </section>
-    <footer class="language-footer">
-      <label for="remote-language">Langue</label>
-      <select id="remote-language" class="language-select" aria-label="Langue"><option value="en">English</option><option value="fr">Français</option></select>
-    </footer>
   </main>
 </body>
 </html>

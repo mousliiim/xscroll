@@ -187,6 +187,7 @@ const pairs = [
   ['e.g. street photography', 'Ex. photo de rue'],
   ['Search for videos', 'Chercher des vidéos'],
   ['External screen', 'Écran externe'],
+  ['Close', 'Fermer'],
   ['Open this link in the other screen’s browser.', 'Ouvre ce lien dans le navigateur de l’autre écran.'],
   ['External screen address', 'Adresse de l’écran externe'],
   ['Copy', 'Copier'],

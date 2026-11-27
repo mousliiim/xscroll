@@ -35,6 +35,7 @@ const postErrors = {
 const pendingPosts = new Map();
 let post, postResults = [];
 const previews = [...player.querySelectorAll('[data-preview-rate]')];
+const screenDialog = find('#screen-dialog');
 const screenBadge = find('#screen-badge');
 const screenLink = find('#screen-link');
 const copyScreen = find('#copy-screen');
@@ -178,6 +179,7 @@ function render(result) {
   if (!paired) pending = undefined;
   pairing.hidden = paired;
   player.hidden = !paired;
+  if (!paired && screenDialog.open) screenDialog.close();
   code.disabled = pairingNow;
   connection(available ? 'ready' : paired ? 'offline' : 'waiting',
     available ? 'Lecteur connecté' : paired ? 'Lecteur déconnecté' : 'Prêt à jumeler');
@@ -190,9 +192,7 @@ function render(result) {
   write(play.querySelector('.play-label'), paused ? 'Lire' : 'Pause');
   buttons.get('toggle-mute').setAttribute('aria-pressed', String(muted));
   write(buttons.get('toggle-mute'), muted ? 'Son coupé' : 'Son');
-  const repliesButton = buttons.get('replies');
-  repliesButton.setAttribute('aria-pressed', String(replies));
-  write(repliesButton, replies ? 'Masquer' : 'Afficher');
+  buttons.get('replies').setAttribute('aria-pressed', String(replies));
   buttons.get('replies-auto').setAttribute('aria-pressed', String(autoReplies));
   if (!held && Date.now() >= editingUntil) drawSpeed(rate, rateTarget ?? rate);
 }
@@ -242,6 +242,7 @@ async function manageScreen(action, data) {
   }
 }
 
+find('#open-screen').addEventListener('click', () => screenDialog.showModal());
 copyScreen.addEventListener('click', async () => {
   try {
     if (navigator.clipboard) await navigator.clipboard.writeText(screenLink.value);
@@ -422,7 +423,7 @@ search.addEventListener('submit', event => {
   if (subject) void send('search', { topic: subject });
 });
 document.addEventListener('keydown', event => {
-  if (event.target.matches('input, button') || event.metaKey || event.ctrlKey || event.altKey) return;
+  if (screenDialog.open || event.target.closest('input, button, select') || event.metaKey || event.ctrlKey || event.altKey) return;
   const command = {
     ' ': 'toggle-play', ArrowUp: 'previous', ArrowDown: 'next', ArrowLeft: 'rewind',
     ArrowRight: 'forward', m: 'toggle-mute', r: 'replies', '+': 'faster', '-': 'slower',

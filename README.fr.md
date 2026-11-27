@@ -1,16 +1,16 @@
 <div align="center">
 
-<img src="docs/brand.png" width="68" height="68" alt="">
+<img src="static/icons/icon128.png" width="68" height="68" alt="">
 
 # XScroll
 
 **Fais défiler les vidéos de X, garde le lecteur au-dessus de tes applis ou regarde sur un autre écran en pilotant depuis ton téléphone.**
 
-[Télécharger pour Chrome](downloads/XScroll.zip?raw=true) · [Voir la démo](docs/xscroll-preview.mp4) · [Read in English](README.md)
-
-<a href="docs/xscroll-preview.mp4"><img src="docs/xscroll-preview.webp" width="880" alt="Lire la démo de XScroll avec le fil vidéo, le mini-lecteur et la télécommande mobile"></a>
+[Télécharger pour Chrome](downloads/XScroll.zip?raw=true) · [Read in English](README.md)
 
 </div>
+
+https://github.com/user-attachments/assets/e664878c-4946-402c-a871-c0132e9f3d2a
 
 ## Ce que tu peux faire
 
@@ -80,4 +80,14 @@ Charge le dossier `extension/` dans Chrome. `npm run package` régénère le ZIP
 
 </details>
 
-[Confidentialité](PRIVACY.md) · [Licence MIT](LICENSE) · [Crédits de la démo](docs/demo-credits.md)
+<details>
+<summary>Crédits de la démo</summary>
+
+La démo a été enregistrée dans Chromium avec XScroll installé et un fil X d’exemple.
+
+- [Flower](https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4) · MDN, CC0.
+- [Sunflower](https://commons.wikimedia.org/wiki/File:Video_Codec_Test_sunflower_1080p25.y4m.webm) · Taurus Media Technik, CC0.
+
+</details>
+
+[Confidentialité](PRIVACY.md) · [Licence MIT](LICENSE)

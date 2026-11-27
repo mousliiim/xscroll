@@ -1,16 +1,16 @@
 <div align="center">
 
-<img src="docs/brand.png" width="68" height="68" alt="">
+<img src="static/icons/icon128.png" width="68" height="68" alt="">
 
 # XScroll
 
 **Swipe through X videos, float the player over your work, or watch on another screen while your phone controls playback.**
 
-[Download for Chrome](downloads/XScroll.zip?raw=true) · [Watch the demo](docs/xscroll-preview.mp4) · [Lire en français](README.fr.md)
-
-<a href="docs/xscroll-preview.mp4"><img src="docs/xscroll-preview.webp" width="880" alt="Play the XScroll demo showing the video feed, mini player and phone remote"></a>
+[Download for Chrome](downloads/XScroll.zip?raw=true) · [Lire en français](README.fr.md)
 
 </div>
+
+https://github.com/user-attachments/assets/e664878c-4946-402c-a871-c0132e9f3d2a
 
 ## What you can do
 
@@ -80,4 +80,14 @@ Load the `extension/` folder in Chrome. `npm run package` rebuilds the download 
 
 </details>
 
-[Privacy](PRIVACY.md) · [MIT license](LICENSE) · [Demo credits](docs/demo-credits.md)
+<details>
+<summary>Demo credits</summary>
+
+The demo was recorded in Chromium with XScroll installed and a sample X feed.
+
+- [Flower](https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4) · MDN, CC0.
+- [Sunflower](https://commons.wikimedia.org/wiki/File:Video_Codec_Test_sunflower_1080p25.y4m.webm) · Taurus Media Technik, CC0.
+
+</details>
+
+[Privacy](PRIVACY.md) · [MIT license](LICENSE)
